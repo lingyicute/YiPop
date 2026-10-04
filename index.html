@@ -918,7 +918,10 @@
       let comboTimer = 0;
       let audioContext = null;
       let audioMaster = null;
+      let audioLimiter = null;
       let audioPrimed = false;
+      // 音效总音量倍数：整体放大所有音效（点消除、撤销、结算等）。想更大声就调大这个数值。
+      const SFX_VOLUME_SCALE = 2.6;
       let actionToken = 0;
       let lastFocusedBeforeModal = null;
 
@@ -1614,7 +1617,7 @@
 
       function ensureAudio() {
         if (audioContext?.state === 'closed') {
-          audioContext = null; audioMaster = null; audioPrimed = false;
+          audioContext = null; audioMaster = null; audioLimiter = null; audioPrimed = false;
         }
         if (!audioContext) {
           const AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -1622,8 +1625,16 @@
           try { audioContext = new AudioCtx({ latencyHint: 'interactive' }); }
           catch (_) { try { audioContext = new AudioCtx(); } catch (_) { return null; } }
           audioMaster = audioContext.createGain();
-          audioMaster.gain.value = .92;
-          audioMaster.connect(audioContext.destination);
+          audioMaster.gain.value = 1;
+          // 限制器：音量加大后多个音效叠加时防止爆音削波
+          audioLimiter = audioContext.createDynamicsCompressor();
+          audioLimiter.threshold.value = -10;
+          audioLimiter.knee.value = 8;
+          audioLimiter.ratio.value = 6;
+          audioLimiter.attack.value = .003;
+          audioLimiter.release.value = .18;
+          audioMaster.connect(audioLimiter);
+          audioLimiter.connect(audioContext.destination);
         }
         return audioContext;
       }
@@ -1652,7 +1663,7 @@
         if (!state.sound || !ctx || ctx.state !== 'running') return;
         const osc = ctx.createOscillator(), gain = ctx.createGain();
         const start = ctx.currentTime + Math.max(.008, delay);
-        const peak = Math.min(.16, volume);
+        const peak = Math.min(.45, volume * SFX_VOLUME_SCALE);
         osc.type = type;
         osc.frequency.setValueAtTime(freq, start);
         osc.frequency.exponentialRampToValueAtTime(Math.max(80, freq * .94), start + duration);
