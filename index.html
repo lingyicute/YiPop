@@ -672,7 +672,7 @@
     @media (max-width: 410px) {
       .brand-copy { gap: 7px; }
       .brand-name { font-size: 20px; }
-      .web-badge { display: none; }
+      .web-badge { padding: 5px 9px; font-size: 11px; }
       .header-inner, main { width: min(100% - 20px, 1220px); }
       h1 { font-size: 39px; }
       .difficulty-caption { font-size: 15px; }
@@ -683,6 +683,10 @@
       .difficulty-options { grid-template-columns: repeat(2, 1fr); }
       .panel-card { padding: 18px; }
       .score-preview { padding: 6px 8px; }
+    }
+
+    @media (max-width: 360px) {
+      .web-badge { display: none; }
     }
 
     .made-with-love {
