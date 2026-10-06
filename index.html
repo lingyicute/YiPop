@@ -1014,13 +1014,17 @@
         });
         els.board.addEventListener('pointerover', e => {
           const tile = e.target.closest('.tile');
-          if (!tile || state.locked) return;
+          if (!tile) { clearPreview(); return; }
+          if (state.locked) return;
           previewGroup(Number(tile.dataset.row), Number(tile.dataset.col));
         });
         els.board.addEventListener('pointerleave', clearPreview);
         els.board.addEventListener('focusin', e => {
           const tile = e.target.closest('.tile');
-          if (tile) previewGroup(Number(tile.dataset.row), Number(tile.dataset.col));
+          if (tile && !state.locked) previewGroup(Number(tile.dataset.row), Number(tile.dataset.col));
+        });
+        els.board.addEventListener('focusout', () => {
+          setTimeout(() => { if (!els.board.contains(document.activeElement)) clearPreview(); }, 0);
         });
         els.board.addEventListener('keydown', handleBoardKeys);
 
