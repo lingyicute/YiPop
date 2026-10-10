@@ -188,6 +188,8 @@
     }
     .popover[hidden] { display: none; }
     @keyframes popoverIn { from { opacity: 0; transform: scale(.92) translateY(-8px); } }
+    .popover.is-closing { animation: popoverOut .16s var(--ease) forwards; pointer-events: none; }
+    @keyframes popoverOut { to { opacity: 0; transform: scale(.92) translateY(-8px); } }
     .popover-title { margin: 0 0 17px; color: var(--on-surface-2); font-size: 14px; font-weight: 800; letter-spacing: .08em; }
     .palette-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
     .swatch {
@@ -514,6 +516,8 @@
       animation: toastIn .25s var(--ease);
     }
     @keyframes toastIn { from { opacity: 0; transform: translateY(18px) scale(.95); } }
+    .toast.is-closing { animation: toastOut .18s var(--ease) forwards; }
+    @keyframes toastOut { to { opacity: 0; transform: translateY(12px) scale(.95); } }
 
     .score-float {
       position: fixed;
@@ -583,6 +587,10 @@
       animation: modalIn .26s var(--ease);
     }
     @keyframes modalIn { from { opacity: 0; transform: translateY(22px) scale(.95); } }
+    .modal-layer.is-closing { animation: fadeOut .18s ease forwards; pointer-events: none; }
+    .modal-layer.is-closing .modal { animation: modalOut .18s var(--ease) forwards; }
+    @keyframes fadeOut { to { opacity: 0; } }
+    @keyframes modalOut { to { opacity: 0; transform: translateY(16px) scale(.96); } }
     .modal-icon { width: 66px; height: 66px; margin: 0 auto 20px; display: grid; place-items: center; border-radius: 22px; color: var(--on-primary-container); background: var(--primary-container); }
     .modal-icon svg { width: 34px; height: 34px; fill: currentColor; }
     .modal h2 { margin: 0; text-align: center; font-size: 30px; font-weight: 950; letter-spacing: -.5px; }
@@ -920,6 +928,7 @@
       let bestScores = loadJSON(STORAGE.best, { easy: 0, medium: 0, hard: 0, expert: 0 });
       let state = { difficulty: 'easy', board: [], score: 0, moves: 0, history: [], locked: false, gameOver: false, sound: prefs.sound !== false };
       let toastTimer = 0;
+      let toastHideTimer = 0;
       let comboTimer = 0;
       let audioContext = null;
       let audioMaster = null;
@@ -1047,19 +1056,45 @@
         });
       }
 
+      const POPOVER_CLOSE_MS = 160;
+      const popoverTimers = new Map();
+
+      function isPopoverOpen(el) {
+        return !el.hidden && !el.classList.contains('is-closing');
+      }
+
+      function showPopover(el) {
+        clearTimeout(popoverTimers.get(el));
+        popoverTimers.delete(el);
+        el.classList.remove('is-closing');
+        el.hidden = false;
+      }
+
+      // 先播放退出动画，动画结束后再真正隐藏（避免浮层“瞬间消失”）
+      function hidePopover(el) {
+        if (!isPopoverOpen(el)) return;
+        el.classList.add('is-closing');
+        popoverTimers.set(el, setTimeout(() => {
+          el.hidden = true;
+          el.classList.remove('is-closing');
+          popoverTimers.delete(el);
+        }, POPOVER_CLOSE_MS));
+      }
+
       function togglePopover(which) {
         const isPalette = which === 'palette';
         const target = isPalette ? els.palettePopover : els.menuPopover;
         const other = isPalette ? els.menuPopover : els.palettePopover;
         const button = isPalette ? els.paletteButton : els.menuButton;
         const otherButton = isPalette ? els.menuButton : els.paletteButton;
-        const willOpen = target.hidden;
-        other.hidden = true; otherButton.classList.remove('active'); otherButton.setAttribute('aria-expanded', 'false');
-        target.hidden = !willOpen; button.classList.toggle('active', willOpen); button.setAttribute('aria-expanded', String(willOpen));
+        const willOpen = !isPopoverOpen(target);
+        hidePopover(other); otherButton.classList.remove('active'); otherButton.setAttribute('aria-expanded', 'false');
+        if (willOpen) showPopover(target); else hidePopover(target);
+        button.classList.toggle('active', willOpen); button.setAttribute('aria-expanded', String(willOpen));
       }
 
       function closePopovers() {
-        els.palettePopover.hidden = true; els.menuPopover.hidden = true;
+        hidePopover(els.palettePopover); hidePopover(els.menuPopover);
         els.paletteButton.classList.remove('active'); els.menuButton.classList.remove('active');
         els.paletteButton.setAttribute('aria-expanded', 'false'); els.menuButton.setAttribute('aria-expanded', 'false');
       }
@@ -1511,7 +1546,13 @@
         });
       }
 
+      const MODAL_CLOSE_MS = 180;
+      let modalCloseTimer = 0;
+
       function openModal(html, dismissible = true) {
+        // 若弹窗正处于关闭动画中，取消待执行的隐藏
+        clearTimeout(modalCloseTimer);
+        els.modalLayer.classList.remove('is-closing');
         lastFocusedBeforeModal = document.activeElement;
         els.modal.innerHTML = html;
         els.modal.dataset.dismissible = String(dismissible);
@@ -1520,10 +1561,21 @@
         requestAnimationFrame(() => $('button', els.modal)?.focus());
       }
 
+      // 先播放退出动画，动画结束后再真正隐藏并清空内容
       function closeModal() {
-        if (els.modalLayer.hidden) return;
-        els.modalLayer.hidden = true; els.modal.innerHTML = ''; document.body.style.overflow = '';
+        if (els.modalLayer.hidden || els.modalLayer.classList.contains('is-closing')) return;
+        els.modalLayer.classList.add('is-closing');
+        document.body.style.overflow = '';
         lastFocusedBeforeModal?.focus?.();
+        clearTimeout(modalCloseTimer);
+        modalCloseTimer = setTimeout(finishCloseModal, MODAL_CLOSE_MS);
+      }
+
+      function finishCloseModal() {
+        clearTimeout(modalCloseTimer);
+        els.modalLayer.classList.remove('is-closing');
+        els.modalLayer.hidden = true;
+        els.modal.innerHTML = '';
       }
 
       function handleBoardKeys(e) {
@@ -1552,8 +1604,15 @@
 
       function showToast(message) {
         clearTimeout(toastTimer);
+        clearTimeout(toastHideTimer);
         els.toast.innerHTML = `<div class="toast">${message}</div>`;
-        toastTimer = setTimeout(() => { els.toast.innerHTML = ''; }, 2200);
+        // 总显示时长仍为 2.2s：在最后 180ms 播放退出动画，然后移除
+        toastTimer = setTimeout(() => {
+          const toast = els.toast.firstElementChild;
+          if (!toast) return;
+          toast.classList.add('is-closing');
+          toastHideTimer = setTimeout(() => { els.toast.innerHTML = ''; }, 180);
+        }, 2020);
       }
 
       function showComboCenter(title, subtitle) {
