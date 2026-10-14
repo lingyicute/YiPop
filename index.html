@@ -764,7 +764,7 @@
     }
 
     @media (prefers-reduced-motion: reduce) {
-      *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+      *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .001ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
     }
   </style>
   <style>
@@ -1152,6 +1152,7 @@
       function startNewGame(difficulty = 'easy', announce = false) {
         const config = CONFIGS[difficulty];
         actionToken++; // 使尚未完成的连锁爆炸动画立即失效
+        clearEffects();
         state.difficulty = difficulty;
         state.board = createBoard(config.size, config.colors);
         state.score = 0; state.moves = 0; state.history = []; state.locked = false; state.gameOver = false;
@@ -1210,6 +1211,8 @@
       }
 
       function renderBoard(settling = false) {
+        clearPreview();
+        els.board.classList.remove('shake');
         const config = CONFIGS[state.difficulty];
         els.board.style.setProperty('--grid-size', config.size);
         els.board.setAttribute('aria-rowcount', config.size);
@@ -1239,7 +1242,7 @@
         els.progressScore.textContent = format(state.score);
         els.remaining.textContent = remaining;
         els.moves.textContent = state.moves;
-        els.undo.disabled = !state.history.length || state.locked;
+        els.undo.disabled = !state.history.length;
         const progress = Math.min(100, Math.round(state.score / config.goal * 100));
         els.progressFill.style.width = `${progress}%`;
         els.progressTrack.setAttribute('aria-valuenow', progress);
@@ -1317,6 +1320,7 @@
       }
 
       function removeAt(row, col, sourceTile) {
+        if (state.locked || state.gameOver) return;
         const group = findExplosionOrder(state.board, row, col);
         if (group.length < 2) {
           els.board.classList.remove('shake'); void els.board.offsetWidth; els.board.classList.add('shake');
@@ -1331,6 +1335,12 @@
 
         const token = ++actionToken;
         const gained = scoreFor(group.length);
+        if (prefersReducedMotion()) {
+          group.forEach(([r, c]) => { state.board[r][c] = null; });
+          playChainPop(0, group.length);
+          animateBoardCompaction(token, gained, group.length);
+          return;
+        }
         const sourceRect = sourceTile.getBoundingClientRect();
         const colorClass = [...sourceTile.classList].find(name => /^c\d+$/.test(name)) || `c${state.board[row][col]}`;
         const interval = chainInterval(group.length);
@@ -1422,10 +1432,13 @@
         if (duration <= 1) return;
 
         const movingTiles = [];
-        $$('.tile[data-cell-id]', els.board).forEach(tile => {
+        const tiles = $$('.tile[data-cell-id]', els.board);
+        // 批量读取布局，再写入样式，避免每颗星都触发同步布局。
+        const currentRects = new Map(tiles.map(tile => [tile, tile.getBoundingClientRect()]));
+        tiles.forEach(tile => {
           const previous = previousRects.get(tile.dataset.cellId);
           if (!previous) return;
-          const current = tile.getBoundingClientRect();
+          const current = currentRects.get(tile);
           const dx = previous.left - current.left;
           const dy = previous.top - current.top;
           if (Math.abs(dx) < .5 && Math.abs(dy) < .5) return;
@@ -1452,10 +1465,16 @@
 
       function animateBoardCompaction(token, gained, removedCount) {
         const tracked = createTrackedBoard();
-        const reducedMotion = matchMedia('(prefers-reduced-motion: reduce)').matches;
-        const fallDuration = reducedMotion ? 1 : 390;
-        const shiftDuration = reducedMotion ? 1 : 340;
-        const stageGap = reducedMotion ? 0 : 35;
+        if (prefersReducedMotion()) {
+          collapseVerticalTracked(tracked);
+          shiftColumnsLeftTracked(tracked);
+          renderTrackedBoard(tracked, new Map(), 0);
+          finalizeCompaction(tracked, token, gained, removedCount);
+          return;
+        }
+        const fallDuration = 390;
+        const shiftDuration = 340;
+        const stageGap = 35;
 
         const beforeFall = captureTileRects();
         collapseVerticalTracked(tracked);
@@ -1501,8 +1520,9 @@
       }
 
       function undoMove() {
-        if (!state.history.length || state.locked) { if (!state.history.length) showToast('还没有可以撤销的操作'); return; }
+        if (!state.history.length) { showToast('还没有可以撤销的操作'); return; }
         actionToken++;
+        clearEffects();
         const previous = state.history.pop();
         state.board = previous.board; state.score = previous.score; state.moves = previous.moves;
         state.gameOver = false; state.locked = false;
@@ -1653,6 +1673,8 @@
       }
 
       function showComboCenter(title, subtitle) {
+        if (prefersReducedMotion()) return;
+        const token = actionToken;
         clearTimeout(comboTimer);
         els.comboLayer.hidden = false;
         els.comboLayer.innerHTML = '';
@@ -1662,13 +1684,25 @@
         bubble.innerHTML = subtitle ? `${title}<small>${subtitle}</small>` : title;
         els.comboLayer.appendChild(bubble);
         playTone(880, .14, 'sine', .08);
-        setTimeout(() => playTone(1175, .13, 'triangle', .06), 90);
+        setTimeout(() => { if (token === actionToken) playTone(1175, .13, 'triangle', .06); }, 90);
         comboTimer = setTimeout(() => {
-          setTimeout(() => { els.comboLayer.hidden = true; els.comboLayer.innerHTML = ''; }, 180);
-        }, 900);
+          els.comboLayer.hidden = true; els.comboLayer.innerHTML = '';
+        }, 1080);
+      }
+
+      function prefersReducedMotion() {
+        return matchMedia('(prefers-reduced-motion: reduce)').matches;
+      }
+
+      function clearEffects() {
+        clearTimeout(comboTimer);
+        els.comboLayer.hidden = true;
+        els.comboLayer.replaceChildren();
+        $$('.particle, .blast-ring, .score-float').forEach(el => el.remove());
       }
 
       function makeScoreFloat(x, y, text) {
+        if (prefersReducedMotion()) return;
         const el = document.createElement('span');
         el.className = 'score-float'; el.textContent = text;
         el.style.left = `${x}px`; el.style.top = `${y}px`; el.style.transform = 'translateX(-50%)';
@@ -1676,6 +1710,7 @@
       }
 
       function makeTileBlast(rect, colorClass, sequenceIndex) {
+        if (prefersReducedMotion()) return;
         const colors = ['#ad6bed','#5aa5ee','#36d3a1','#f0c64f','#f48a63','#ee6295'];
         const idx = Number((colorClass || 'c0').replace('c','')) || 0;
         const color = colors[idx];
@@ -1707,6 +1742,7 @@
       }
 
       function celebrate() {
+        if (prefersReducedMotion()) return;
         const colors = ['#ad6bed','#5aa5ee','#36d3a1','#f0c64f','#f48a63','#ee6295'];
         for (let i = 0; i < 46; i++) {
           const p = document.createElement('span'); p.className = 'particle';
