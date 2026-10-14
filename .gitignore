@@ -1,0 +1,6 @@
+node_modules/
+playwright-report/
+test-results/
+__pycache__/
+*.pyc
+scripts/Nebulove-subset.woff2

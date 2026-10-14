@@ -925,7 +925,7 @@
         prefs = loadJSON(STORAGE.legacyPrefs, {});
         prefs.sound = true; // 默认启用音效
       }
-      let bestScores = loadJSON(STORAGE.best, { easy: 0, medium: 0, hard: 0, expert: 0 });
+      let bestScores = normalizeBestScores(loadJSON(STORAGE.best, {}));
       let state = { difficulty: 'easy', board: [], score: 0, moves: 0, history: [], locked: false, gameOver: false, sound: prefs.sound !== false };
       let toastTimer = 0;
       let toastHideTimer = 0;
@@ -939,13 +939,19 @@
       let actionToken = 0;
       let lastFocusedBeforeModal = null;
 
-      initAppearance();
-      bindEvents();
-      restoreOrCreateGame();
-
       function loadJSON(key, fallback) {
-        try { const value = JSON.parse(localStorage.getItem(key)); return value && typeof value === 'object' ? value : fallback; }
+        try { const value = JSON.parse(localStorage.getItem(key)); return value && typeof value === 'object' && !Array.isArray(value) ? value : fallback; }
         catch (_) { return fallback; }
+      }
+
+      function isValidScore(value, config) {
+        return Number.isSafeInteger(value) && value >= 0 && value <= scoreFor(config.size ** 2) + 2000;
+      }
+
+      function normalizeBestScores(saved) {
+        return Object.fromEntries(Object.entries(CONFIGS).map(([key, config]) =>
+          [key, isValidScore(saved[key], config) ? saved[key] : 0]
+        ));
       }
 
       function savePrefs() {
@@ -954,9 +960,9 @@
       }
 
       function initAppearance() {
-        const preferredTheme = prefs.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        const preferredTheme = ['light', 'dark'].includes(prefs.theme) ? prefs.theme : (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
         els.root.dataset.theme = preferredTheme;
-        els.root.dataset.accent = prefs.accent || 'violet';
+        els.root.dataset.accent = $$('.swatch').some(s => s.dataset.accent === prefs.accent) ? prefs.accent : 'violet';
         syncAppearanceUI();
       }
 
@@ -1101,20 +1107,46 @@
 
       function restoreOrCreateGame() {
         const saved = loadJSON(STORAGE.game, null);
-        if (saved && CONFIGS[saved.difficulty] && isValidBoard(saved.board, CONFIGS[saved.difficulty].size) && !saved.gameOver) {
+        if (isValidSavedGame(saved) && !saved.gameOver) {
           state.difficulty = saved.difficulty;
           state.board = saved.board;
-          state.score = Number(saved.score) || 0;
-          state.moves = Number(saved.moves) || 0;
+          state.score = saved.score;
+          state.moves = saved.moves;
           state.gameOver = false;
           renderAll(false);
+          // 兼容旧版本在最后一步落盘后、结算前保存的残局。
+          if (!hasMoves(state.board)) finishGame();
         } else {
           startNewGame('easy', false);
         }
       }
 
-      function isValidBoard(board, size) {
-        return Array.isArray(board) && board.length === size && board.every(row => Array.isArray(row) && row.length === size);
+      function isValidSavedGame(saved) {
+        if (!saved || !Object.hasOwn(CONFIGS, saved.difficulty)) return false;
+        const config = CONFIGS[saved.difficulty];
+        return typeof saved.gameOver === 'boolean' && isValidScore(saved.score, config) &&
+          Number.isSafeInteger(saved.moves) && saved.moves >= 0 && saved.moves <= config.size ** 2 / 2 &&
+          isValidBoard(saved.board, config);
+      }
+
+      function isValidBoard(board, { size, colors }) {
+        if (!Array.isArray(board) || board.length !== size || !board.every(row =>
+          Array.isArray(row) && row.length === size && row.every(color =>
+            color === null || (Number.isInteger(color) && color >= 0 && color < colors)
+          )
+        )) return false;
+        // 存档只允许稳定棋盘：星星不能悬空，空列只能位于右侧。
+        let emptyColumn = false;
+        for (let c = 0; c < size; c++) {
+          let occupied = false;
+          for (let r = 0; r < size; r++) {
+            if (board[r][c] !== null) occupied = true;
+            else if (occupied) return false;
+          }
+          if (!occupied) emptyColumn = true;
+          else if (emptyColumn) return false;
+        }
+        return true;
       }
 
       function startNewGame(difficulty = 'easy', announce = false) {
@@ -1455,11 +1487,16 @@
           tile.dataset.cellId = `${tile.dataset.row}-${tile.dataset.col}`;
         });
         syncBoardInteractionState();
-        updateStats();
-        saveGame();
         if (removedCount >= 8) showComboCenter(`${removedCount} 颗连锁爆炸`, '太棒了!');
+        // 结算和持久化在同一任务内完成，避免刷新恢复到不可操作的残局。
         if (!hasMoves(state.board)) {
-          setTimeout(() => { if (token === actionToken) finishGame(); }, 430);
+          finishGame();
+        } else {
+          if (state.score > bestScores[state.difficulty]) {
+            bestScores[state.difficulty] = state.score; saveBest();
+          }
+          updateStats();
+          saveGame();
         }
       }
 
@@ -1767,6 +1804,10 @@
         const notes = success ? [523,659,784,1046] : [392,349,294];
         notes.forEach((n,i) => playTone(n, .18, 'sine', .075, i * .12));
       }
+      // 所有计时器和常量初始化后再启动，恢复残局时可能直接打开结算弹窗。
+      initAppearance();
+      bindEvents();
+      restoreOrCreateGame();
     })();
   </script>
 </body>
