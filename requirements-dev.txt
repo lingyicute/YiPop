@@ -1,0 +1,3 @@
+# Optional font tooling and its tests; not needed to play or deploy YiPop.
+fonttools==4.66.1
+brotli==1.2.0
