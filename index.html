@@ -340,6 +340,7 @@
       touch-action: manipulation;
       user-select: none;
     }
+    .board-row { display: contents; }
     .tile, .empty-cell {
       min-width: 0;
       min-height: 0;
@@ -799,7 +800,7 @@
         </button>
 
         <div class="popover-wrap">
-          <button class="icon-button" id="paletteButton" type="button" aria-label="选择配色" aria-expanded="false" title="选择配色">
+          <button class="icon-button" id="paletteButton" aria-controls="palettePopover" type="button" aria-label="选择配色" aria-expanded="false" title="选择配色">
             <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 0 0 0 20h1.6a2.4 2.4 0 0 0 1.7-4.1 1.17 1.17 0 0 1 .83-2h1.75A4.12 4.12 0 0 0 22 11.78C22 6.38 17.52 2 12 2ZM6.5 13A1.5 1.5 0 1 1 6.5 10a1.5 1.5 0 0 1 0 3ZM9 8a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Zm5-1a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Zm3.5 4a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3Z"/></svg>
           </button>
           <div class="popover" id="palettePopover" hidden>
@@ -818,7 +819,7 @@
         </div>
 
         <div class="popover-wrap">
-          <button class="icon-button" id="menuButton" type="button" aria-label="打开菜单" aria-expanded="false" title="菜单">
+          <button class="icon-button" id="menuButton" aria-controls="menuPopover" type="button" aria-label="打开菜单" aria-expanded="false" title="菜单">
             <svg viewBox="0 0 24 24"><path d="M4 6.75a1.25 1.25 0 0 1 1.25-1.25h13.5a1.25 1.25 0 1 1 0 2.5H5.25A1.25 1.25 0 0 1 4 6.75ZM4 12a1.25 1.25 0 0 1 1.25-1.25h13.5a1.25 1.25 0 1 1 0 2.5H5.25A1.25 1.25 0 0 1 4 12Zm0 5.25A1.25 1.25 0 0 1 5.25 16h13.5a1.25 1.25 0 1 1 0 2.5H5.25A1.25 1.25 0 0 1 4 17.25Z"/></svg>
           </button>
           <div class="popover menu-popover" id="menuPopover" hidden>
@@ -841,7 +842,7 @@
 
     <div class="game-layout">
       <section class="stats-panel" aria-label="本局数据">
-        <div class="stat-card"><span class="stat-label">分数</span><strong class="stat-value" id="scoreValue">0</strong></div>
+        <div class="stat-card" role="status" aria-live="polite" aria-atomic="true"><span class="stat-label">分数</span><strong class="stat-value" id="scoreValue">0</strong></div>
         <div class="stat-card primary"><span class="stat-label">最高分</span><strong class="stat-value" id="bestValue">0</strong></div>
         <button class="round-action" id="undoButton" type="button" aria-label="撤销上一步" title="撤销（Z）" disabled><svg viewBox="0 0 24 24"><path d="M7.4 7H14a6 6 0 0 1 0 12h-3v-2h3a4 4 0 0 0 0-8H7.4l3.3 3.3-1.4 1.4L3.6 8l5.7-5.7 1.4 1.4L7.4 7Z"/></svg></button>
         <button class="round-action primary" id="restartButton" type="button" aria-label="重新开始" title="重新开始（R）"><svg viewBox="0 0 24 24"><path d="M12 4a8 8 0 1 1-7.45 5.08l1.86.74A6 6 0 1 0 8.1 7.35L11 10.25H4V3.3l2.68 2.68A7.96 7.96 0 0 1 12 4Z"/></svg></button>
@@ -889,7 +890,7 @@
   <div class="combo-layer" id="comboLayer" hidden aria-live="polite" aria-atomic="true"></div>
 
   <div class="modal-layer" id="modalLayer" hidden role="presentation">
-    <section class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle"></section>
+    <section class="modal" id="modal" tabindex="-1" role="dialog" aria-modal="true" aria-labelledby="modalTitle"></section>
   </div>
 
   <script>
@@ -938,6 +939,9 @@
       const SFX_VOLUME_SCALE = 2.6;
       let actionToken = 0;
       let lastFocusedBeforeModal = null;
+      let activeCell = { row: 0, col: 0 };
+      let pendingBoardFocus = false;
+      let previousBodyOverflow = '';
 
       function loadJSON(key, fallback) {
         try { const value = JSON.parse(localStorage.getItem(key)); return value && typeof value === 'object' && !Array.isArray(value) ? value : fallback; }
@@ -970,7 +974,11 @@
         const dark = els.root.dataset.theme === 'dark';
         els.themeButton.setAttribute('aria-label', dark ? '切换浅色模式' : '切换深色模式');
         $('meta[name="theme-color"]').content = dark ? '#100f15' : '#fbf9ff';
-        $$('.swatch').forEach(s => s.setAttribute('aria-checked', String(s.dataset.accent === els.root.dataset.accent)));
+        $$('.swatch').forEach(s => {
+          const selected = s.dataset.accent === els.root.dataset.accent;
+          s.setAttribute('aria-checked', String(selected));
+          s.tabIndex = selected ? 0 : -1;
+        });
         els.soundSwitch.classList.toggle('on', state.sound);
         els.soundMenu.setAttribute('aria-pressed', String(state.sound));
       }
@@ -995,8 +1003,20 @@
         $$('.swatch').forEach(swatch => swatch.addEventListener('click', () => {
           els.root.dataset.accent = swatch.dataset.accent;
           syncAppearanceUI(); savePrefs();
-          setTimeout(closePopovers, 130);
+          closePopovers();
         }));
+
+        els.palettePopover.addEventListener('keydown', e => {
+          const swatches = $$('.swatch');
+          const index = swatches.indexOf(e.target);
+          const delta = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+          if (index < 0 || (!delta && !['Home', 'End'].includes(e.key))) return;
+          e.preventDefault();
+          const next = e.key === 'Home' ? 0 : e.key === 'End' ? swatches.length - 1 :
+            (index + delta + swatches.length) % swatches.length;
+          els.root.dataset.accent = swatches[next].dataset.accent;
+          syncAppearanceUI(); savePrefs(); swatches[next].focus();
+        });
 
         document.addEventListener('click', closePopovers);
         els.helpMenu.addEventListener('click', () => { closePopovers(); showHelp(); });
@@ -1035,13 +1055,16 @@
         els.board.addEventListener('pointerover', e => {
           const tile = e.target.closest('.tile');
           if (!tile) { clearPreview(); return; }
-          if (state.locked) return;
+          if (state.locked || state.gameOver) return;
           previewGroup(Number(tile.dataset.row), Number(tile.dataset.col));
         });
         els.board.addEventListener('pointerleave', clearPreview);
         els.board.addEventListener('focusin', e => {
           const tile = e.target.closest('.tile');
-          if (tile && !state.locked) previewGroup(Number(tile.dataset.row), Number(tile.dataset.col));
+          if (tile && !state.gameOver) {
+            setActiveTile(tile);
+            if (!state.locked) previewGroup(Number(tile.dataset.row), Number(tile.dataset.col));
+          }
         });
         els.board.addEventListener('focusout', () => {
           setTimeout(() => { if (!els.board.contains(document.activeElement)) clearPreview(); }, 0);
@@ -1050,13 +1073,22 @@
 
         els.modalLayer.addEventListener('click', e => { if (e.target === els.modalLayer && els.modal.dataset.dismissible !== 'false') closeModal(); });
         document.addEventListener('keydown', e => {
+          if (!els.modalLayer.hidden && e.key === 'Tab') {
+            const buttons = $$('button:not(:disabled)', els.modal);
+            const first = buttons[0] || els.modal, last = buttons[buttons.length - 1] || els.modal;
+            if (e.shiftKey && (document.activeElement === first || !els.modal.contains(document.activeElement))) {
+              e.preventDefault(); last.focus();
+            } else if (!e.shiftKey && (document.activeElement === last || !els.modal.contains(document.activeElement))) {
+              e.preventDefault(); first.focus();
+            }
+            return;
+          }
           if (e.key === 'Escape') {
             if (!els.modalLayer.hidden && els.modal.dataset.dismissible !== 'false') closeModal(); else closePopovers();
             return;
           }
-          if (!els.modalLayer.hidden || e.ctrlKey || e.metaKey || e.altKey) return;
-          const tag = document.activeElement?.tagName;
-          if (tag === 'INPUT' || tag === 'TEXTAREA') return;
+          if (!els.modalLayer.hidden || e.ctrlKey || e.metaKey || e.altKey || e.repeat) return;
+          if (document.activeElement?.closest('input, textarea, select, [contenteditable]:not([contenteditable="false"])')) return;
           if (e.key.toLowerCase() === 'z') { e.preventDefault(); undoMove(); }
           if (e.key.toLowerCase() === 'r') { e.preventDefault(); startNewGame(state.difficulty, true); }
         });
@@ -1074,11 +1106,16 @@
         popoverTimers.delete(el);
         el.classList.remove('is-closing');
         el.hidden = false;
+        el.inert = false;
       }
 
       // 先播放退出动画，动画结束后再真正隐藏（避免浮层“瞬间消失”）
       function hidePopover(el) {
         if (!isPopoverOpen(el)) return;
+        if (el.contains(document.activeElement)) {
+          (el === els.palettePopover ? els.paletteButton : els.menuButton).focus();
+        }
+        el.inert = true;
         el.classList.add('is-closing');
         popoverTimers.set(el, setTimeout(() => {
           el.hidden = true;
@@ -1153,6 +1190,8 @@
         const config = CONFIGS[difficulty];
         actionToken++; // 使尚未完成的连锁爆炸动画立即失效
         clearEffects();
+        pendingBoardFocus = false;
+        activeCell = { row: 0, col: 0 };
         state.difficulty = difficulty;
         state.board = createBoard(config.size, config.colors);
         state.score = 0; state.moves = 0; state.history = []; state.locked = false; state.gameOver = false;
@@ -1183,21 +1222,28 @@
         els.caption.textContent = `${config.label} · ${config.size}×${config.size}`;
         els.detail.textContent = config.detail;
         els.goalText.textContent = `目标 ${format(config.goal)}`;
-        $$('.difficulty-button').forEach(b => b.classList.toggle('active', b.dataset.difficulty === state.difficulty));
+        $$('.difficulty-button').forEach(b => {
+          const selected = b.dataset.difficulty === state.difficulty;
+          b.classList.toggle('active', selected);
+          b.setAttribute('aria-pressed', String(selected));
+        });
         renderBoard(settling);
         updateStats();
       }
 
-      function createEmptyCell() {
+      function createEmptyCell(r, c) {
         const empty = document.createElement('span');
         empty.className = 'empty-cell';
-        empty.setAttribute('aria-hidden', 'true');
+        empty.setAttribute('role', 'gridcell');
+        empty.setAttribute('aria-rowindex', r + 1);
+        empty.setAttribute('aria-colindex', c + 1);
         return empty;
       }
 
       function createTileElement(color, r, c, cellId = `${r}-${c}`, settling = false) {
         const tile = document.createElement('button');
         tile.type = 'button';
+        tile.tabIndex = -1;
         tile.className = `tile c${color}${settling ? ' is-settling' : ''}`;
         tile.dataset.row = r;
         tile.dataset.col = c;
@@ -1211,26 +1257,61 @@
       }
 
       function renderBoard(settling = false) {
+        const hadFocus = els.board.contains(document.activeElement);
         clearPreview();
         els.board.classList.remove('shake');
         const config = CONFIGS[state.difficulty];
         els.board.style.setProperty('--grid-size', config.size);
         els.board.setAttribute('aria-rowcount', config.size);
         els.board.setAttribute('aria-colcount', config.size);
-        const fragment = document.createDocumentFragment();
-        state.board.forEach((row, r) => row.forEach((color, c) => {
-          fragment.appendChild(color === null
-            ? createEmptyCell()
-            : createTileElement(color, r, c, `${r}-${c}`, settling));
-        }));
-        els.board.replaceChildren(fragment);
+        els.board.replaceChildren(createBoardFragment(state.board, (color, r, c) =>
+          color === null ? createEmptyCell(r, c) : createTileElement(color, r, c, `${r}-${c}`, settling)
+        ));
         syncBoardInteractionState();
+        if (hadFocus) focusActiveTile();
+      }
+
+      function createBoardFragment(board, createCell) {
+        const fragment = document.createDocumentFragment();
+        board.forEach((row, r) => {
+          const rowElement = document.createElement('div');
+          rowElement.className = 'board-row';
+          rowElement.setAttribute('role', 'row');
+          row.forEach((cell, c) => rowElement.appendChild(createCell(cell, r, c)));
+          fragment.appendChild(rowElement);
+        });
+        return fragment;
+      }
+
+      function setActiveTile(tile) {
+        activeCell = { row: Number(tile.dataset.row), col: Number(tile.dataset.col) };
+        $$('.tile', els.board).forEach(other => { other.tabIndex = other === tile ? 0 : -1; });
+      }
+
+      function focusActiveTile() {
+        ($('.tile[tabindex="0"]', els.board) || els.board).focus({ preventScroll: true });
+      }
+
+      function restoreBoardFocus() {
+        // 如果动画期间用户已经转向菜单或其他控件，不抢回焦点。
+        if (pendingBoardFocus && els.modalLayer.hidden &&
+            (document.activeElement === document.body || els.board.contains(document.activeElement))) focusActiveTile();
+        pendingBoardFocus = false;
       }
 
       function syncBoardInteractionState() {
         const locked = state.locked || state.gameOver;
         els.board.classList.toggle('locked', locked);
-        els.board.setAttribute('aria-busy', String(locked));
+        els.board.setAttribute('aria-busy', String(state.locked));
+        els.board.setAttribute('aria-disabled', String(locked));
+        const tiles = $$('.tile', els.board);
+        const distance = tile => Math.abs(Number(tile.dataset.row) - activeCell.row) + Math.abs(Number(tile.dataset.col) - activeCell.col);
+        const nearest = tiles.reduce((best, tile) => !best || distance(tile) < distance(best) ? tile : best, null);
+        tiles.forEach(tile => {
+          tile.tabIndex = !state.gameOver && tile === nearest ? 0 : -1;
+          tile.setAttribute('aria-disabled', String(locked));
+        });
+        els.board.tabIndex = state.gameOver || !tiles.length ? 0 : -1;
       }
 
       function updateStats() {
@@ -1329,6 +1410,7 @@
           return;
         }
 
+        pendingBoardFocus = els.board.contains(document.activeElement);
         state.history.push({ board: cloneBoard(state.board), score: state.score, moves: state.moves });
         if (state.history.length > 12) state.history.shift();
         state.locked = true; clearPreview(); syncBoardInteractionState(); updateStats();
@@ -1364,7 +1446,7 @@
             setTimeout(() => {
               if (token !== actionToken || !tile.isConnected) return;
               state.board[r][c] = null;
-              tile.replaceWith(createEmptyCell());
+              tile.replaceWith(createEmptyCell(r, c));
             }, 335);
           }, index * interval);
         });
@@ -1421,14 +1503,10 @@
       function renderTrackedBoard(board, previousRects, duration) {
         const config = CONFIGS[state.difficulty];
         els.board.style.setProperty('--grid-size', config.size);
-        const fragment = document.createDocumentFragment();
-        board.forEach((row, r) => row.forEach((cell, c) => {
-          fragment.appendChild(cell === null
-            ? createEmptyCell()
-            : createTileElement(cell.color, r, c, cell.id, false));
-        }));
-        els.board.replaceChildren(fragment);
-        els.board.classList.add('locked');
+        els.board.replaceChildren(createBoardFragment(board, (cell, r, c) =>
+          cell === null ? createEmptyCell(r, c) : createTileElement(cell.color, r, c, cell.id, false)
+        ));
+        syncBoardInteractionState();
         if (duration <= 1) return;
 
         const movingTiles = [];
@@ -1506,6 +1584,7 @@
           tile.dataset.cellId = `${tile.dataset.row}-${tile.dataset.col}`;
         });
         syncBoardInteractionState();
+        restoreBoardFocus();
         if (removedCount >= 8) showComboCenter(`${removedCount} 颗连锁爆炸`, '太棒了!');
         // 结算和持久化在同一任务内完成，避免刷新恢复到不可操作的残局。
         if (!hasMoves(state.board)) {
@@ -1526,7 +1605,7 @@
         const previous = state.history.pop();
         state.board = previous.board; state.score = previous.score; state.moves = previous.moves;
         state.gameOver = false; state.locked = false;
-        closeModal(); renderAll(true); saveGame(); playTone(360, .08, 'sine', .035); showToast('已撤销上一步');
+        closeModal(); renderAll(true); restoreBoardFocus(); saveGame(); playTone(360, .08, 'sine', .035); showToast('已撤销上一步');
       }
 
       function finishGame() {
@@ -1610,20 +1689,23 @@
         // 若弹窗正处于关闭动画中，取消待执行的隐藏
         clearTimeout(modalCloseTimer);
         els.modalLayer.classList.remove('is-closing');
-        lastFocusedBeforeModal = document.activeElement;
+        if (els.modalLayer.hidden) {
+          lastFocusedBeforeModal = document.activeElement;
+          previousBodyOverflow = document.body.style.overflow;
+        }
         els.modal.innerHTML = html;
         els.modal.dataset.dismissible = String(dismissible);
         els.modalLayer.hidden = false;
         document.body.style.overflow = 'hidden';
-        requestAnimationFrame(() => $('button', els.modal)?.focus());
+        ($('button', els.modal) || els.modal).focus();
+        $('header').inert = true;
+        $('main').inert = true;
       }
 
       // 先播放退出动画，动画结束后再真正隐藏并清空内容
       function closeModal() {
         if (els.modalLayer.hidden || els.modalLayer.classList.contains('is-closing')) return;
         els.modalLayer.classList.add('is-closing');
-        document.body.style.overflow = '';
-        lastFocusedBeforeModal?.focus?.();
         clearTimeout(modalCloseTimer);
         modalCloseTimer = setTimeout(finishCloseModal, MODAL_CLOSE_MS);
       }
@@ -1633,9 +1715,20 @@
         els.modalLayer.classList.remove('is-closing');
         els.modalLayer.hidden = true;
         els.modal.innerHTML = '';
+        $('header').inert = false;
+        $('main').inert = false;
+        document.body.style.overflow = previousBodyOverflow;
+        const previous = lastFocusedBeforeModal;
+        lastFocusedBeforeModal = null;
+        if (previous?.isConnected && previous !== document.body && !previous.closest('[hidden], [inert]')) {
+          previous.focus({ preventScroll: true });
+        } else {
+          focusActiveTile();
+        }
       }
 
       function handleBoardKeys(e) {
+        if (state.locked || state.gameOver) return;
         const tile = e.target.closest('.tile');
         if (!tile || !['ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.key)) return;
         e.preventDefault();
