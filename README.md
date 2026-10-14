@@ -126,9 +126,9 @@ There is no build step: `index.html` is the source *and* the artifact.
 
 2. **Edit and reload** — the file is organised with banner comments and a small `CONFIGS` table at the top of the script that defines every difficulty (size, colours, target score), which is the quickest way to experiment.
 
-3. **Refresh the embedded font (optional)** — after changing UI copy, re-subset the inlined "Nebulove" typeface so the new glyphs are included (the script keeps only the characters the page actually renders, and falls back to the remote font URL only if the data URI is unavailable):
+3. **Refresh the embedded font (optional)** — after changing UI copy, re-subset the inlined "Nebulove" typeface so the new glyphs are included (the script keeps only the characters the page actually renders, and falls back to system fonts if a glyph or the embedded font is unavailable; the page never downloads a remote font):
    ```bash
-   pip install fonttools brotli
+   pip install -r requirements-dev.txt
    python3 scripts/subset_font.py --check    # report only
    python3 scripts/subset_font.py            # subset & embed in place
    ```
