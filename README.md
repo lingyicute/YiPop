@@ -144,6 +144,40 @@ Contributions are always welcome!
 
 <br>
 
+
+## 🧪 Development & Automated Tests
+
+YiPop maintains automated regression suites covering state persistence, core board compaction invariants, reduced-motion execution, animation cancellation, keyboard roving focus and modal isolation, audio lifecycle, and font subset reproducibility.
+
+### Prerequisites
+
+```bash
+# Node 18+ for test runners
+npm install
+
+# Playwright browsers (for cross-browser E2E)
+npx playwright install
+
+# Python 3.10+ dev dependencies (for font subsetting and its tests)
+pip install -r requirements-dev.txt
+```
+
+### Running Tests
+
+```bash
+# Pure Node core algorithm invariants (500 seeded random boards)
+npm test
+
+# Full cross-browser E2E suite (Chromium, Firefox, WebKit via Playwright)
+npm run test:e2e
+
+# Font subsetting unit tests (read-only checks, atomic updates, idempotency)
+python3 -m unittest discover -s tests -p 'test_*.py' -v
+
+# Regenerate embedded Nebulove subset or verify idempotency
+python3 scripts/subset_font.py --check
+```
+
 ## 📄 License
 
 ```text
