@@ -144,7 +144,6 @@ Contributions are always welcome!
 
 <br>
 
-
 ## 🧪 Development & Automated Tests
 
 YiPop maintains automated regression suites covering state persistence, core board compaction invariants, reduced-motion execution, animation cancellation, keyboard roving focus and modal isolation, audio lifecycle, and font subset reproducibility.
@@ -177,6 +176,8 @@ python3 -m unittest discover -s tests -p 'test_*.py' -v
 # Regenerate embedded Nebulove subset or verify idempotency
 python3 scripts/subset_font.py --check
 ```
+
+<br>
 
 ## 📄 License
 
