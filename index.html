@@ -294,7 +294,8 @@
       background: var(--secondary-container);
     }
     .stat-card.primary { color: var(--on-primary-container); background: var(--primary-container); }
-    .stat-label { margin-bottom: 3px; font-size: 14px; font-weight: 800; letter-spacing: .08em; opacity: .78; }
+    /* 标签直接使用容器配对色：叠加透明度后，浅色主题的青/绿与深色主题的主卡片都会跌破 4.5:1。 */
+    .stat-label { margin-bottom: 3px; font-size: 14px; font-weight: 800; letter-spacing: .08em; }
     .stat-value { max-width: 100%; font-size: clamp(28px, 4vw, 38px); font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; }
     .round-action {
       width: 68px;
