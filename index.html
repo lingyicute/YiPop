@@ -1697,7 +1697,9 @@
         `);
         $('[data-action="cancel"]', els.modal).addEventListener('click', closeModal);
         $('[data-action="confirm"]', els.modal).addEventListener('click', () => {
-          bestScores = { easy: 0, medium: 0, hard: 0, expert: 0 }; saveBest(); updateStats(); closeModal(); showToast('最佳成绩已清除');
+          // 按 CONFIGS 生成空成绩表，新增难度时不会漏清一项。
+          bestScores = Object.fromEntries(Object.keys(CONFIGS).map(key => [key, 0]));
+          saveBest(); updateStats(); closeModal(); showToast('最佳成绩已清除');
         });
       }
 
