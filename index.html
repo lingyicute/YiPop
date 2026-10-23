@@ -1165,13 +1165,19 @@
         } else {
           // 没有可续玩的残局时沿用存档里的难度：上一局刚结算就刷新页面，
           // 不该被悄悄丢回 8×8 的简单棋盘。存档损坏时按存档里的难度重开也符合预期。
-          const difficulty = Object.hasOwn(CONFIGS, saved?.difficulty) ? saved.difficulty : 'easy';
+          const difficulty = isValidDifficulty(saved?.difficulty) ? saved.difficulty : 'easy';
           startNewGame(difficulty, false);
         }
       }
 
+      function isValidDifficulty(difficulty) {
+        // 存档来自不可信的 JSON；先检查类型，避免属性键转换接受数组，
+        // 或因对象覆盖 toString/valueOf 而抛错，阻断整个页面初始化。
+        return typeof difficulty === 'string' && Object.hasOwn(CONFIGS, difficulty);
+      }
+
       function isValidSavedGame(saved) {
-        if (!saved || !Object.hasOwn(CONFIGS, saved.difficulty)) return false;
+        if (!saved || !isValidDifficulty(saved.difficulty)) return false;
         const config = CONFIGS[saved.difficulty];
         return typeof saved.gameOver === 'boolean' && isValidScore(saved.score, config) &&
           Number.isSafeInteger(saved.moves) && saved.moves >= 0 && saved.moves <= config.size ** 2 / 2 &&
