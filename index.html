@@ -922,8 +922,9 @@
 
       let prefs = loadJSON(STORAGE.prefs, null);
       if (!prefs) {
+        // 迁移旧版偏好：只在用户从未设置过音效时默认开启，已关闭的保持关闭。
         prefs = loadJSON(STORAGE.legacyPrefs, {});
-        prefs.sound = true; // 默认启用音效
+        prefs.sound = prefs.sound !== false;
       }
       let bestScores = normalizeBestScores(loadJSON(STORAGE.best, {}));
       let state = { difficulty: 'easy', board: [], score: 0, moves: 0, history: [], locked: false, gameOver: false, sound: prefs.sound !== false };
