@@ -87,3 +87,18 @@ test('enables sound by default when no preference was ever stored', async ({ pag
   await page.goto('/');
   await expect(page.locator('#soundMenu')).toHaveAttribute('aria-pressed', 'true');
 });
+
+test('starts the next run at the difficulty of the finished save', async ({ page }) => {
+  const board = Array.from({ length: 14 }, () => Array(14).fill(0));
+  await seed(page, savedGame(board, { difficulty: 'expert', score: 100, moves: 1, gameOver: true }));
+  await expect(page.locator('#difficultyCaption')).toHaveText('专家 · 14×14');
+  await expect(page.locator('#remainingValue')).toHaveText('196');
+});
+
+test('keeps the saved difficulty even when the board itself is rejected', async ({ page }) => {
+  const board = emptyBoard(10);
+  board[9][0] = 7; // out-of-range colour for the medium board
+  await seed(page, savedGame(board, { difficulty: 'medium', score: 100, moves: 1 }));
+  await expect(page.locator('#difficultyCaption')).toHaveText('中等 · 10×10');
+  await expect(page.locator('#remainingValue')).toHaveText('100');
+});

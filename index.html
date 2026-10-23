@@ -1163,7 +1163,10 @@
           // 兼容旧版本在最后一步落盘后、结算前保存的残局。
           if (!hasMoves(state.board)) finishGame();
         } else {
-          startNewGame('easy', false);
+          // 没有可续玩的残局时沿用存档里的难度：上一局刚结算就刷新页面，
+          // 不该被悄悄丢回 8×8 的简单棋盘。存档损坏时按存档里的难度重开也符合预期。
+          const difficulty = Object.hasOwn(CONFIGS, saved?.difficulty) ? saved.difficulty : 'easy';
+          startNewGame(difficulty, false);
         }
       }
 
