@@ -529,9 +529,12 @@
       font-size: 19px;
       font-weight: 950;
       text-shadow: 0 2px 8px rgba(0,0,0,.35);
+      /* 居中与位移动画分别用 translate / scale 独立属性表达，否则关键帧里的
+         transform 会覆盖掉内联的 translateX(-50%)，让浮字在飞行中向右偏半个宽度。 */
+      translate: -50% 0;
       animation: scoreFly .8s var(--ease) forwards;
     }
-    @keyframes scoreFly { to { opacity: 0; transform: translateY(-64px) scale(1.22); } }
+    @keyframes scoreFly { to { opacity: 0; translate: -50% -64px; scale: 1.22; } }
     .particle {
       --x: 0px; --y: 0px; --rot: 0deg;
       position: fixed;
@@ -1805,7 +1808,7 @@
         if (prefersReducedMotion()) return;
         const el = document.createElement('span');
         el.className = 'score-float'; el.textContent = text;
-        el.style.left = `${x}px`; el.style.top = `${y}px`; el.style.transform = 'translateX(-50%)';
+        el.style.left = `${x}px`; el.style.top = `${y}px`;
         document.body.appendChild(el); setTimeout(() => el.remove(), 850);
       }
 
