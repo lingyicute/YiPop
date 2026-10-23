@@ -946,6 +946,7 @@
       let actionToken = 0;
       let lastFocusedBeforeModal = null;
       let activeCell = { row: 0, col: 0 };
+      let activeTile = null;
       let pendingBoardFocus = false;
       let previousBodyOverflow = '';
 
@@ -1310,7 +1311,11 @@
 
       function setActiveTile(tile) {
         activeCell = { row: Number(tile.dataset.row), col: Number(tile.dataset.col) };
-        $$('.tile', els.board).forEach(other => { other.tabIndex = other === tile ? 0 : -1; });
+        // 焦点移动只需更新两个节点，避免每按一次方向键都重写整盘 tabIndex。
+        if (activeTile === tile) return;
+        if (activeTile) activeTile.tabIndex = -1;
+        tile.tabIndex = 0;
+        activeTile = tile;
       }
 
       function focusActiveTile() {
@@ -1336,6 +1341,8 @@
           tile.tabIndex = !state.gameOver && tile === nearest ? 0 : -1;
           tile.setAttribute('aria-disabled', String(locked));
         });
+        // 棋盘重绘或结算后同步缓存，不保留已移除节点作为活动格。
+        activeTile = state.gameOver ? null : nearest;
         els.board.tabIndex = state.gameOver || !tiles.length ? 0 : -1;
       }
 
