@@ -117,3 +117,31 @@ test('replacing a closing modal cannot be hidden by the old close callback', asy
   await page.clock.runFor(500);
   expect(await page.locator('main').evaluate(el => el.inert)).toBe(false);
 });
+
+test('moving board focus updates only the old and new tab stops', async ({ page }) => {
+  await seed(page, savedGame(Array.from({ length: 14 }, () => Array(14).fill(0)), {
+    difficulty: 'expert', score: 0, moves: 0,
+  }));
+  await page.locator('.tile').first().focus();
+  await page.evaluate(() => {
+    window.tabIndexWrites = 0;
+    const descriptor = Object.getOwnPropertyDescriptor(HTMLElement.prototype, 'tabIndex');
+    Object.defineProperty(HTMLElement.prototype, 'tabIndex', {
+      ...descriptor,
+      set(value) {
+        if (this.matches('#board .tile')) window.tabIndexWrites++;
+        descriptor.set.call(this, value);
+      },
+    });
+  });
+  await page.keyboard.press('ArrowRight');
+  await expect(page.locator('.tile[data-row="0"][data-col="1"]')).toBeFocused();
+  await expect(page.locator('.tile[tabindex="0"]')).toHaveCount(1);
+  expect(await page.evaluate(() => window.tabIndexWrites)).toBeLessThanOrEqual(2);
+  // Re-rendering must replace the cached tab stop rather than retaining an old node.
+  await page.locator('#restartButton').click();
+  await page.locator('.tile').first().focus();
+  await page.keyboard.press('ArrowDown');
+  await expect(page.locator('.tile[data-row="1"][data-col="0"]')).toBeFocused();
+  await expect(page.locator('.tile[tabindex="0"]')).toHaveCount(1);
+});
