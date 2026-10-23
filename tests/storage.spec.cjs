@@ -102,3 +102,16 @@ test('keeps the saved difficulty even when the board itself is rejected', async 
   await expect(page.locator('#difficultyCaption')).toHaveText('中等 · 10×10');
   await expect(page.locator('#remainingValue')).toHaveText('100');
 });
+
+for (const difficulty of [['easy'], { toString: null }, { toString: 'easy', valueOf: 1 }, null, 7, '__proto__']) {
+  test(`rejects malformed difficulty ${JSON.stringify(difficulty)} without a startup error`, async ({ page }) => {
+    const errors = [];
+    page.on('pageerror', error => errors.push(error.message));
+    const board = Array.from({ length: 8 }, () => Array(8).fill(0));
+    await seed(page, savedGame(board, { difficulty, score: 123, moves: 1 }));
+    await expect(page.locator('#remainingValue')).toHaveText('64');
+    await expect(page.locator('#scoreValue')).toHaveText('0');
+    expect((await readGame(page)).difficulty).toBe('easy');
+    expect(errors).toEqual([]);
+  });
+}
