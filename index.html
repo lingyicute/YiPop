@@ -1292,6 +1292,13 @@
         return fragment;
       }
 
+      // 棋盘按行渲染，children[row].children[col] 就是该格节点。悬停预览、连锁爆炸
+      // 与方向键导航都在热路径上按坐标取星，用索引可省去每次都执行属性选择器扫描。
+      function tileAt(row, col) {
+        const cell = els.board.children[row]?.children[col];
+        return cell?.classList.contains('tile') ? cell : null;
+      }
+
       function setActiveTile(tile) {
         activeCell = { row: Number(tile.dataset.row), col: Number(tile.dataset.col) };
         $$('.tile', els.board).forEach(other => { other.tabIndex = other === tile ? 0 : -1; });
@@ -1399,7 +1406,7 @@
           els.preview.textContent = '至少 2 颗'; els.preview.classList.add('show');
           return;
         }
-        group.forEach(([r,c]) => $(`.tile[data-row="${r}"][data-col="${c}"]`, els.board)?.classList.add('group-preview'));
+        group.forEach(([r, c]) => tileAt(r, c)?.classList.add('group-preview'));
         els.preview.textContent = `${group.length} 颗 · +${format(scoreFor(group.length))}`;
         els.preview.classList.add('show');
       }
@@ -1441,7 +1448,7 @@
         group.forEach(([r, c], index) => {
           setTimeout(() => {
             if (token !== actionToken) return;
-            const tile = $(`.tile[data-row="${r}"][data-col="${c}"]`, els.board);
+            const tile = tileAt(r, c);
             if (!tile) return;
             const rect = tile.getBoundingClientRect();
             // 初始入场动画的 class 会保留在节点上，爆炸前必须移除，避免覆盖爆炸动画。
@@ -1746,7 +1753,7 @@
         for (let i = 0; i < state.board.length; i++) {
           r += dr; c += dc;
           if (r < 0 || r >= state.board.length || c < 0 || c >= state.board.length) break;
-          const next = $(`.tile[data-row="${r}"][data-col="${c}"]`, els.board);
+          const next = tileAt(r, c);
           if (next) { next.focus(); break; }
         }
       }
