@@ -71,3 +71,19 @@ test('works when storage throws', async ({ page }) => {
   await page.locator('#restartButton').click();
   expect(errors).toEqual([]);
 });
+
+test('migrates the legacy sound preference instead of forcing sound back on', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.clear();
+    localStorage.setItem('yipop-prefs-v1', JSON.stringify({ sound: false }));
+  });
+  await page.goto('/');
+  await expect(page.locator('#soundMenu')).toHaveAttribute('aria-pressed', 'false');
+  await expect(page.locator('#soundSwitch')).not.toHaveClass(/\bon\b/);
+});
+
+test('enables sound by default when no preference was ever stored', async ({ page }) => {
+  await page.addInitScript(() => localStorage.clear());
+  await page.goto('/');
+  await expect(page.locator('#soundMenu')).toHaveAttribute('aria-pressed', 'true');
+});
