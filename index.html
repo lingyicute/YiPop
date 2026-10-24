@@ -321,7 +321,7 @@
     .stat-value { max-width: 100%; font-size: clamp(28px, 4vw, 38px); font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; }
     /* 机械数字滚轮：每一位是一列 0-9 的滑带，溢出窗口只露出当前数字，滚动方向恒为向前。
        数字字形走 ::before + attr()，不进入 textContent/读屏；真实文本由 .sr-only 提供。 */
-    .odo { display: inline-block; vertical-align: top; }
+    .odo { display: inline-block; vertical-align: top; white-space: nowrap; } /* nowrap：数字列是相邻 inline-block，窄卡片里边界会成为断行点，必须禁掉 */
     .odo-col, .odo-sep { display: inline-block; height: var(--odo-cell, 1.15em); line-height: var(--odo-cell, 1.15em); vertical-align: top; }
     .odo-col { overflow: hidden; }
     .odo-strip { display: block; transition: transform .55s var(--ease); }

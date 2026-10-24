@@ -146,6 +146,23 @@ test('score renders as rolling odometer columns with intact accessible text', as
   expect(await page.locator('#scoreValue .sr-only').textContent()).toBe('2,120');
 });
 
+test('score odometer stays on a single line in a narrow card', async ({ page }) => {
+  // 回归：数字列是相邻 inline-block，元素边界天然是断行点；窄屏（280px）里
+  // 旧的纯文本 "12,345" 不会断，滚轮却会折成两行。.odo 必须 nowrap。
+  await page.setViewportSize({ width: 280, height: 700 });
+  const board = emptyBoard();
+  board[7][0] = board[7][1] = 0; // 保留一步合法移动，避免加载即结算加成
+  await seed(page, savedGame(board, { score: 12345 }));
+  await expect(page.locator('#scoreValue')).toHaveText('12,345');
+  const layout = await page.locator('#scoreValue').evaluate(sv => {
+    const parts = [...sv.querySelectorAll('.odo-col, .odo-sep')];
+    const rows = new Set(parts.map(p => Math.round(p.getBoundingClientRect().top)));
+    return { rows: rows.size, height: sv.getBoundingClientRect().height, fontSize: parseFloat(getComputedStyle(sv).fontSize) };
+  });
+  expect(layout.rows).toBe(1);
+  expect(layout.height).toBeLessThan(layout.fontSize * 1.5);
+});
+
 test('leftover stars detonate from the rightmost column top-down before the result dialog', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   // 右下角 L 形四颗互不相邻的孤星：加载即无步可走，进入结算引爆演出。
