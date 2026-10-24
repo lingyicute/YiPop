@@ -5,7 +5,9 @@ const vm = require('node:vm');
 const path = require('node:path');
 
 // Exercise the shipped single-file code, without adding a production debug API.
-let script = fs.readFileSync(path.join(__dirname, '../index.html'), 'utf8').match(/<script>([\s\S]*?)<\/script>/)[1];
+// 页面含两个 <script>（head 的主题预置快路径 + 正文主脚本），取最后一个。
+const scripts = [...fs.readFileSync(path.join(__dirname, '../index.html'), 'utf8').matchAll(/<script>([\s\S]*?)<\/script>/g)];
+let script = scripts[scripts.length - 1][1];
 for (const call of ['initAppearance();', 'bindEvents();', 'restoreOrCreateGame();']) script = script.replace(call, '');
 script = script.replace('})();', 'globalThis.game = { findGroup, findExplosionOrder, hasMoves, scoreFor, collapseVerticalTracked, shiftColumnsLeftTracked, createBoard }; })();');
 const context = vm.createContext({ document: { querySelector: () => null }, localStorage: { getItem: () => null } });

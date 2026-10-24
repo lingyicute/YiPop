@@ -4,6 +4,25 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="theme-color" content="#100f15">
+  <script>
+    // 首帧之前套用存档（或系统）的主题与配色：正文末尾的主脚本要等整个文档
+    // （含内嵌字体）解析完才运行，浅色用户每次加载都会先看到一帧深色画面。
+    // 这里只做预绘制快路径，取值合法性仍由 initAppearance 以 DOM 为准再校验一次。
+    (() => {
+      try {
+        const prefs = JSON.parse(localStorage.getItem('yipop-prefs-v2') || 'null')
+          || JSON.parse(localStorage.getItem('yipop-prefs-v1') || 'null');
+        // 与正文 .swatch 的 data-accent 列表保持同步。
+        const accents = ['violet', 'blue', 'cyan', 'green', 'amber', 'orange', 'pink', 'coral'];
+        const theme = prefs && ['light', 'dark'].includes(prefs.theme) ? prefs.theme
+          : (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        const root = document.documentElement;
+        root.dataset.theme = theme;
+        if (prefs && accents.includes(prefs.accent)) root.dataset.accent = prefs.accent;
+        document.querySelector('meta[name="theme-color"]').content = theme === 'dark' ? '#100f15' : '#fbf9ff';
+      } catch (_) {}
+    })();
+  </script>
   <title>YiPop Web · 消灭星星</title>
   <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
   <link rel="icon" href="assets/favicon-32.png" type="image/png" sizes="32x32">
