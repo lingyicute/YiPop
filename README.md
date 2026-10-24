@@ -20,7 +20,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-AGPL--3.0-orange.svg" alt="License: AGPL-3.0"></a>
-  <a href="index.html"><img src="https://img.shields.io/badge/Single%20File-138%20KB-blue" alt="Single File 138 KB"></a>
+  <a href="index.html"><img src="https://img.shields.io/badge/Single%20File-153%20KB-blue" alt="Single File 153 KB"></a>
   <a href="https://github.com/lingyicute/YiPop"><img src="https://img.shields.io/badge/Dependencies-Zero-brightgreen" alt="Zero Dependencies"></a>
   <a href="https://github.com/lingyicute/YiPop"><img src="https://img.shields.io/badge/Ads%20%26%20Trackers-Zero-brightgreen" alt="No Ads No Tracking"></a>
   <a href="https://github.com/lingyicute/YiPop"><img src="https://img.shields.io/github/stars/lingyicute/YiPop?style=flat&color=yellow" alt="GitHub Stars"></a>
