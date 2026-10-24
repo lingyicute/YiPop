@@ -20,6 +20,18 @@ test('board has valid rows and a single tab stop; arrows update it', async ({ pa
   expect(await page.evaluate(() => document.activeElement.closest('#board') === null)).toBe(true);
 });
 
+test('hover preview highlights only the group under the pointer', async ({ page }) => {
+  await twoGroups(page);
+  await page.locator('.tile[data-row="7"][data-col="0"]').hover();
+  await expect(page.locator('.tile.group-preview')).toHaveCount(2);
+  await expect(page.locator('.tile[data-row="6"][data-col="0"].group-preview')).toHaveCount(1);
+  await page.locator('.tile[data-row="7"][data-col="1"]').hover();
+  // 换到另一组时，上一组的高亮必须被清掉，不能残留。
+  await expect(page.locator('.tile[data-row="6"][data-col="1"].group-preview')).toHaveCount(1);
+  await expect(page.locator('.tile[data-row="6"][data-col="0"].group-preview')).toHaveCount(0);
+  await expect(page.locator('.tile.group-preview')).toHaveCount(2);
+});
+
 test('keyboard play preserves focus on a surviving tile after compaction', async ({ page }) => {
   await twoGroups(page);
   await page.locator('.tile').first().focus();

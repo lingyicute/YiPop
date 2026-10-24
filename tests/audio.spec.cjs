@@ -24,6 +24,9 @@ async function fakeAudio(page) {
 
 async function soundingGame(page) {
   await fakeAudio(page);
+  // 这些用例只关心音频图的生命周期。真实连锁动画会分批、跨帧地创建振荡器，
+  // 让“结算后是否还留有未释放的音”变成时序竞争，所以固定为减少动效模式。
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   const board = emptyBoard();
   board[6][0] = board[7][0] = 0;
   board[6][1] = board[7][1] = 1;
