@@ -128,6 +128,24 @@ test('combo bubble stays on screen through the longer window', async ({ page }) 
   await expect(page.locator('#comboLayer')).toBeHidden();
 });
 
+test('score renders as rolling odometer columns with intact accessible text', async ({ page }) => {
+  const board = emptyBoard();
+  board[6][0] = board[7][0] = 0;
+  await seed(page, savedGame(board)); // 存档分 100
+  await expect(page.locator('#scoreValue')).toHaveText('100');
+  expect(await page.locator('#scoreValue .odo-col').count()).toBe(3);
+  await page.locator('.tile').first().click();
+  await expect(page.locator('#scoreValue')).toHaveText('2,120');
+  expect(await page.locator('#scoreValue .odo-col').count()).toBe(4);
+  expect(await page.locator('#scoreValue .odo-sep').count()).toBe(1);
+  // 停稳后每位滑带的偏移必须恰好落在目标数字上（pos % 10），且读屏文本与可见值一致。
+  await page.waitForTimeout(1200);
+  const digits = await page.locator('#scoreValue .odo-col').evaluateAll(cols =>
+    cols.map(col => Number(col.dataset.pos) % 10));
+  expect(digits).toEqual([2, 1, 2, 0]);
+  expect(await page.locator('#scoreValue .sr-only').textContent()).toBe('2,120');
+});
+
 for (const [stage, elapsed] of [['fall', 500], ['column shift', 950]]) {
   test(`undo cancels ${stage} without a late score or save`, async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'no-preference' });
