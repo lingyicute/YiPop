@@ -6,6 +6,8 @@ function fullGame(size = 8, difficulty = 'easy') {
 }
 
 test('reduced motion commits even a 196-star move without animation timers or particles', async ({ page }) => {
+  // 全局配置已不再强制 reducedMotion，需要这条语义的用例自己声明系统偏好。
+  await page.emulateMedia({ reducedMotion: 'reduce' });
   await seed(page, fullGame(14, 'expert'));
   const saved = await page.locator('.tile').first().evaluate(tile => {
     tile.click();
@@ -14,6 +16,36 @@ test('reduced motion commits even a 196-star move without animation timers or pa
   expect(saved.gameOver).toBe(true);
   expect(saved.score).toBe(194080);
   expect(await page.locator('.particle, .blast-ring, .score-float').count()).toBe(0);
+});
+
+test('score float keeps the tile centre while it flies up', async ({ page }) => {
+  const board = emptyBoard();
+  board[6][0] = board[7][0] = 0;
+  board[6][1] = board[7][1] = 1;
+  await seed(page, savedGame(board));
+  const tile = await page.locator('.tile').first().boundingBox();
+  const originCentre = tile.x + tile.width / 2;
+
+  // 在页面内用 rAF 连续采样：既不受协议往返时序影响（浮字 850ms 后就被移除），
+  // 也能覆盖整段飞行过程，而不是只取某一瞬间。
+  const samples = await page.evaluate(() => new Promise(resolve => {
+    const collected = [];
+    const start = performance.now();
+    document.querySelector('.tile').click();
+    const loop = () => {
+      document.querySelectorAll('.score-float').forEach(float => {
+        const rect = float.getBoundingClientRect();
+        collected.push(rect.left + rect.width / 2);
+      });
+      if (performance.now() - start < 520) requestAnimationFrame(loop);
+      else resolve(collected);
+    };
+    requestAnimationFrame(loop);
+  }));
+
+  expect(samples.length).toBeGreaterThan(5);
+  // 关键帧里改用 transform 的旧写法会让浮字整段飞行都向右偏半个自身宽度。
+  expect(Math.max(...samples.map(centre => Math.abs(centre - originCentre)))).toBeLessThan(1.5);
 });
 
 for (const action of ['undo', 'restart', 'difficulty']) {

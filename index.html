@@ -627,7 +627,9 @@
     .text-button { color: var(--primary); background: transparent; }
     .filled-button:hover, .tonal-button:hover, .text-button:hover { filter: brightness(1.06); transform: translateY(-1px); }
     .result-score { margin: 24px 0; padding: 22px; border-radius: 24px; text-align: center; background: var(--primary-container); color: var(--on-primary-container); }
-    .result-score span { display: block; font-size: 13px; font-weight: 800; opacity: .76; }
+    /* 与 .stat-label 同理：13px 粗体属于正文级字号，叠加透明度后在深色 cyan/green/amber
+       主题只有 3.5~3.8:1，直接使用容器配对色可稳定高于 4.5:1。 */
+    .result-score span { display: block; font-size: 13px; font-weight: 800; }
     .result-score strong { display: block; margin-top: 4px; font-size: 48px; line-height: 1; font-weight: 950; font-variant-numeric: tabular-nums; }
     .result-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; margin-bottom: 25px; }
     .result-item { padding: 13px 8px; border-radius: 16px; text-align: center; background: var(--surface-high); }
@@ -947,6 +949,8 @@
       let lastFocusedBeforeModal = null;
       let activeCell = { row: 0, col: 0 };
       let activeTile = null;
+      // 上一次点亮的高亮组，clearPreview 只清理这些节点，不必每次悬停都扫描整块棋盘。
+      let previewedTiles = [];
       let pendingBoardFocus = false;
       let previousBodyOverflow = '';
 
@@ -1312,14 +1316,21 @@
       function setActiveTile(tile) {
         activeCell = { row: Number(tile.dataset.row), col: Number(tile.dataset.col) };
         // 焦点移动只需更新两个节点，避免每按一次方向键都重写整盘 tabIndex。
-        if (activeTile === tile) return;
-        if (activeTile) activeTile.tabIndex = -1;
+        // 缓存命中时仍要确认 DOM 上真的是 0：万一有别的路径改过 tabIndex，这里顺手修好，
+        // 而不是把不一致的状态永久保留下来。
+        if (activeTile === tile && tile.tabIndex === 0) return;
+        // 爆炸动画期间旧活动格可能已经被替换出文档，别在游离节点上做无意义写入。
+        if (activeTile && activeTile !== tile && activeTile.isConnected) activeTile.tabIndex = -1;
         tile.tabIndex = 0;
         activeTile = tile;
       }
 
       function focusActiveTile() {
-        ($('.tile[tabindex="0"]', els.board) || els.board).focus({ preventScroll: true });
+        // 优先用缓存的活动格；缓存失效（重绘、结算、节点被替换）时再退回选择器。
+        const target = activeTile?.isConnected && activeTile.tabIndex === 0
+          ? activeTile
+          : ($('.tile[tabindex="0"]', els.board) || els.board);
+        target.focus({ preventScroll: true });
       }
 
       function restoreBoardFocus() {
@@ -1337,9 +1348,13 @@
         const tiles = $$('.tile', els.board);
         const distance = tile => Math.abs(Number(tile.dataset.row) - activeCell.row) + Math.abs(Number(tile.dataset.col) - activeCell.col);
         const nearest = tiles.reduce((best, tile) => !best || distance(tile) < distance(best) ? tile : best, null);
+        // 只有旧的活动格和新活动格会变，其余瓦片的 tabIndex 本来就该是 -1。先读后写：
+        // 值相同就跳过，省掉每次消除近 400 次多余属性写入（写入会触发样式与无障碍树的更新）。
+        const lockedText = String(locked);
         tiles.forEach(tile => {
-          tile.tabIndex = !state.gameOver && tile === nearest ? 0 : -1;
-          tile.setAttribute('aria-disabled', String(locked));
+          const nextTabIndex = !state.gameOver && tile === nearest ? 0 : -1;
+          if (tile.tabIndex !== nextTabIndex) tile.tabIndex = nextTabIndex;
+          if (tile.getAttribute('aria-disabled') !== lockedText) tile.setAttribute('aria-disabled', lockedText);
         });
         // 棋盘重绘或结算后同步缓存，不保留已移除节点作为活动格。
         activeTile = state.gameOver ? null : nearest;
@@ -1422,13 +1437,17 @@
           els.preview.textContent = '至少 2 颗'; els.preview.classList.add('show');
           return;
         }
-        group.forEach(([r, c]) => tileAt(r, c)?.classList.add('group-preview'));
+        previewedTiles = group.map(([r, c]) => tileAt(r, c)).filter(Boolean);
+        previewedTiles.forEach(tile => tile.classList.add('group-preview'));
         els.preview.textContent = `${group.length} 颗 · +${format(scoreFor(group.length))}`;
         els.preview.classList.add('show');
       }
 
       function clearPreview(hide = true) {
-        $$('.group-preview', els.board).forEach(tile => tile.classList.remove('group-preview'));
+        // 悬停预览是最高频的路径（每次 pointerover 都会调用），这里只遍历上一次点亮的节点。
+        // 重绘时调用的 clearPreview 会顺带丢弃已脱离文档的旧节点。
+        previewedTiles.forEach(tile => tile.classList.remove('group-preview'));
+        previewedTiles = [];
         if (hide) els.preview.classList.remove('show');
       }
 
