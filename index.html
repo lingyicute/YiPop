@@ -997,6 +997,11 @@
       let previewedTiles = [];
       let pendingBoardFocus = false;
       let previousBodyOverflow = '';
+      let previousBodyPaddingRight = '';
+      // 缓存 MediaQueryList 引用：连锁爆炸、压缩动画与粒子在热路径上每帧都会查一次，
+      // 每次都创建新的 matchMedia 既浪费也让 Playwright 的 emulateMedia 无法
+      // 通过同一个实例观测变化；缓存后 .matches 是活的，系统偏好切换即时生效。
+      const motionQuery = matchMedia('(prefers-reduced-motion: reduce)');
 
       function loadJSON(key, fallback) {
         try { const value = JSON.parse(localStorage.getItem(key)); return value && typeof value === 'object' && !Array.isArray(value) ? value : fallback; }
@@ -2065,7 +2070,7 @@
       }
 
       function prefersReducedMotion() {
-        return matchMedia('(prefers-reduced-motion: reduce)').matches;
+        return motionQuery.matches;
       }
 
       function clearEffects() {
