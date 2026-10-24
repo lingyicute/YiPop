@@ -26,21 +26,20 @@ test('score float keeps the tile centre while it flies up', async ({ page }) => 
   const tile = await page.locator('.tile').first().boundingBox();
   const originCentre = tile.x + tile.width / 2;
 
-  // 在页面内用 rAF 连续采样：既不受协议往返时序影响（浮字 850ms 后就被移除），
-  // 也能覆盖整段飞行过程，而不是只取某一瞬间。
+  // 在页面内按墙上时钟连续采样：既不受协议往返时序影响（浮字 850ms 后就被移除），
+  // 也能覆盖整段飞行过程，而不是只取某一瞬间。不用 rAF 采样：软件渲染引擎
+  // （如无头 WebKit）整段飞行只产出两三帧，样本量与引擎帧率解耦才稳定；
+  // getBoundingClientRect 会强制取当前动画时刻的位置，无需等帧。
   const samples = await page.evaluate(() => new Promise(resolve => {
     const collected = [];
     const start = performance.now();
+    const timer = setInterval(() => {
+      const float = document.querySelector('.score-float');
+      if (!float || performance.now() - start > 2000) { clearInterval(timer); resolve(collected); return; }
+      const rect = float.getBoundingClientRect();
+      collected.push(rect.left + rect.width / 2);
+    }, 40);
     document.querySelector('.tile').click();
-    const loop = () => {
-      document.querySelectorAll('.score-float').forEach(float => {
-        const rect = float.getBoundingClientRect();
-        collected.push(rect.left + rect.width / 2);
-      });
-      if (performance.now() - start < 520) requestAnimationFrame(loop);
-      else resolve(collected);
-    };
-    requestAnimationFrame(loop);
   }));
 
   expect(samples.length).toBeGreaterThan(5);
