@@ -146,6 +146,37 @@ test('score renders as rolling odometer columns with intact accessible text', as
   expect(await page.locator('#scoreValue .sr-only').textContent()).toBe('2,120');
 });
 
+test('leftover stars detonate from the rightmost column top-down before the result dialog', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  // 右下角 L 形四颗互不相邻的孤星：加载即无步可走，进入结算引爆演出。
+  // 顺序应为「最右列自上而下 → 逐列向左」：(6,2)→(7,2)→(7,1)→(7,0)。
+  const board = emptyBoard();
+  board[6][2] = 3; board[7][2] = 2; board[7][1] = 1; board[7][0] = 0;
+  await page.clock.install();
+  await page.clock.pauseAt(Date.now()); // 冻结真实走时，演出进度完全由 runFor 驱动
+  await seed(page, savedGame(board));
+
+  const exploding = page.locator('.tile.is-exploding');
+  await page.clock.runFor(30);
+  await expect(exploding).toHaveCount(1);
+  await expect(exploding.first()).toHaveAttribute('data-col', '2'); // 最右列先炸
+  await expect(exploding.first()).toHaveAttribute('data-row', '6'); // 列内自上而下
+  await page.clock.runFor(60);
+  await expect(exploding).toHaveCount(2);
+  await expect(exploding.nth(1)).toHaveAttribute('data-row', '7');
+  await expect(page.locator('#modalLayer')).toBeHidden(); // 演出放完才结算
+  await page.clock.runFor(60);
+  await expect(exploding).toHaveCount(3); // 已推进到次右列 (7,1)
+  expect(await exploding.evaluateAll(tiles => tiles.map(t => t.dataset.col).sort()))
+    .toEqual(['1', '2', '2']);
+  await page.clock.runFor(1200);
+  await expect(page.locator('#modalLayer')).toBeVisible();
+  // 「查看棋盘」要按 state 恢复真实残局，而不是演出清空后的空盘。
+  await page.locator('[data-action="close"]').click();
+  await page.clock.runFor(300);
+  await expect(page.locator('#board .tile')).toHaveCount(4);
+});
+
 for (const [stage, elapsed] of [['fall', 500], ['column shift', 950]]) {
   test(`undo cancels ${stage} without a late score or save`, async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'no-preference' });
