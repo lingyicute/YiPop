@@ -180,9 +180,27 @@ test('rapid consecutive undos keep odometer digits within the strip and reclaim 
     };
   }));
   expect(columns.map(col => col.digit)).toEqual(['1', '0', '0']);
-  expect(columns.every(col => col.pos >= 10 && col.pos <= 29 && col.count === 50 && col.aligned)).toBe(true);
+  // 静止窗口是 [10,19]，滑带基准 30 格（ODO_ROWS 3 × 10）；回卷后不应残留临时扩展的格子。
+  expect(columns.every(col => col.pos >= 10 && col.pos <= 19 && col.count === 30 && col.aligned)).toBe(true);
   expect((await readGame(page)).score).toBe(100);
 });
+
+// 滑带的位移必须恰好等于 pos × 列的盒高：这是 CSS 的 --odo-cell 与 JS 里
+// translateY(calc(var(--odo-cell) * -pos)) 之间唯一的耦合点，单位写错时数字会整体错位。
+async function odometerColumns(page, selector = '#scoreValue') {
+  return page.locator(`${selector} .odo-col`).evaluateAll(cols => cols.map(col => {
+    const strip = col.firstElementChild;
+    const colRect = col.getBoundingClientRect();
+    const shifted = strip.getBoundingClientRect().top - colRect.top;
+    const pos = Number(col.dataset.pos);
+    return {
+      pos,
+      shift: Math.round(shifted * 100) / 100,
+      expected: Math.round(-pos * colRect.height * 100) / 100,
+      digit: strip.children[pos]?.dataset.d,
+    };
+  }));
+}
 
 test('score odometer stays on a single line in a narrow card', async ({ page }) => {
   // 回归：数字列是相邻 inline-block，元素边界天然是断行点；窄屏（280px）里
@@ -193,12 +211,66 @@ test('score odometer stays on a single line in a narrow card', async ({ page }) 
   await seed(page, savedGame(board, { difficulty: 'expert', score: 102345 }));
   await expect(page.locator('#scoreValue')).toHaveText('102345');
   const layout = await page.locator('#scoreValue').evaluate(sv => {
-    const parts = [...sv.querySelectorAll('.odo-col, .odo-sep')];
+    const parts = [...sv.querySelectorAll('.odo-col')];
     const rows = new Set(parts.map(p => Math.round(p.getBoundingClientRect().top)));
     return { rows: rows.size, height: sv.getBoundingClientRect().height, fontSize: parseFloat(getComputedStyle(sv).fontSize) };
   });
   expect(layout.rows).toBe(1);
-  expect(layout.height).toBeLessThan(layout.fontSize * 1.5);
+  // 单行高度必须等于一格滑带的高（--odo-cell），而不是字体行高。
+  expect(layout.height).toBeLessThan(layout.fontSize * 1.25);
+  await page.waitForTimeout(900); // 等首屏的进位滚动停稳，再量位移
+  const columns = await odometerColumns(page);
+  expect(columns.every(col => Math.abs(col.shift - col.expected) < 1)).toBe(true);
+});
+
+test('score odometer keeps its cell height when the font is scaled up', async ({ page }) => {
+  // 系统字号放大 / 用户样式改字号时，--odo-cell 是 em 值，会跟着字号一起放大；
+  // 位移仍须等于 pos × 盒高，且整条读数不能被裁成两行。这是「几何量走 CSS 变量」的回归线。
+  const board = emptyBoard();
+  board[6][0] = board[7][0] = 0;
+  await seed(page, savedGame(board, { score: 12340 }));
+  await expect(page.locator('#scoreValue')).toHaveText('12340');
+  await page.addStyleTag({ content: '.stat-value { font-size: 44px; }' });
+  await page.waitForTimeout(100);
+  const layout = await page.locator('#scoreValue').evaluate(sv => {
+    const col = sv.querySelector('.odo-col');
+    const rows = new Set([...sv.querySelectorAll('.odo-col')].map(p => Math.round(p.getBoundingClientRect().top)));
+    return {
+      rows: rows.size,
+      cell: Math.round(col.getBoundingClientRect().height),
+      fontSize: parseFloat(getComputedStyle(sv).fontSize),
+      height: Math.round(sv.getBoundingClientRect().height),
+    };
+  });
+  expect(layout.rows).toBe(1);
+  expect(layout.fontSize).toBe(44);
+  // 1.15em 的格高随字号放大到 50.6px，读数整体高度仍是一格。
+  expect(layout.cell).toBe(Math.round(44 * 1.15));
+  expect(layout.height).toBe(layout.cell);
+  await page.waitForTimeout(900); // 字号变化会重新计算格高，等这一滚停稳
+  const columns = await odometerColumns(page);
+  expect(columns.map(col => col.digit)).toEqual(['1', '2', '3', '4', '0']);
+  expect(columns.every(col => Math.abs(col.shift - col.expected) < 1)).toBe(true);
+});
+
+test('odometer rebuilds cleanly when the score loses a digit', async ({ page }) => {
+  // 位数变化会整组重建（每列从 0 起滚）。分数 2120 → 撤销回 100 是最常见的一条路径，
+  // 却只有文本层被覆盖到；这里连列数、落点与对齐一起锁住。
+  const board = emptyBoard();
+  board[6][0] = board[7][0] = 0;
+  await seed(page, savedGame(board));
+  await page.locator('.tile').first().click();
+  await expect(page.locator('#scoreValue')).toHaveText('2120');
+  expect(await page.locator('#scoreValue .odo-col').count()).toBe(4);
+  await page.locator('[data-action="close"]').click();
+  await expect(page.locator('#modalLayer')).toBeHidden();
+  await page.keyboard.press('z');
+  await expect(page.locator('#scoreValue')).toHaveText('100');
+  expect(await page.locator('#scoreValue .odo-col').count()).toBe(3);
+  await page.waitForTimeout(1200); // 等错位滚动停稳
+  const columns = await odometerColumns(page);
+  expect(columns.map(col => col.digit)).toEqual(['1', '0', '0']);
+  expect(columns.every(col => col.pos >= 10 && col.pos <= 19 && Math.abs(col.shift - col.expected) < 1)).toBe(true);
 });
 
 test('leftover stars detonate from the rightmost column top-down before the result dialog', async ({ page }) => {

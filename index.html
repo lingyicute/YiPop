@@ -326,15 +326,18 @@
     .stat-card.primary { color: var(--on-primary-container); background: var(--primary-container); }
     /* 标签直接使用容器配对色：叠加透明度后，浅色主题的青/绿与深色主题的主卡片都会跌破 4.5:1。 */
     .stat-label { margin-bottom: 3px; font-size: 14px; font-weight: 800; letter-spacing: .08em; }
-    .stat-value { max-width: 100%; font-size: clamp(28px, 4vw, 38px); font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; }
+    /* --odo-cell 是滚轮唯一的格高来源：line-height: 1 让盒高与字体字形无关，clamp() 只改字号，
+       所以这里直接声明 1.15em 就能稳定推出像素值（JS 也只按 em 兜底换算），
+       不必再在每一格上写 calc(var(--odo-cell) * -pos)，省掉上千次自定义属性替换。
+       text-overflow: ellipsis 对 inline-block 组成的滚轮本来就不生效，去掉以免误导。 */
+    .stat-value { max-width: 100%; --odo-cell: 1.15em; font-size: clamp(28px, 4vw, 38px); font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; overflow: hidden; }
     /* 机械数字滚轮：每一位是一列 0-9 的滑带，溢出窗口只露出当前数字，滚动方向恒为向前。
        数字字形走 ::before + attr()，不进入 textContent/读屏；真实文本由 .sr-only 提供。 */
     .odo { display: inline-block; vertical-align: top; white-space: nowrap; } /* nowrap：数字列是相邻 inline-block，窄卡片里边界会成为断行点，必须禁掉 */
-    .odo-col, .odo-sep { display: inline-block; height: var(--odo-cell, 1.15em); line-height: var(--odo-cell, 1.15em); vertical-align: top; }
-    .odo-col { overflow: hidden; }
+    .odo-col { display: inline-block; height: var(--odo-cell); vertical-align: top; overflow: hidden; }
     .odo-strip { display: block; transition: transform .55s var(--ease); }
-    .odo-cell { display: block; height: var(--odo-cell, 1.15em); line-height: var(--odo-cell, 1.15em); text-align: center; }
-    .odo-cell::before, .odo-sep::before { content: attr(data-d); }
+    .odo-cell { display: block; height: var(--odo-cell); line-height: var(--odo-cell); text-align: center; }
+    .odo-cell::before { content: attr(data-d); }
     /* clip: rect() 已废弃，等价的新写法是 clip-path: inset(50%)。 */
     .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
     .round-action {
@@ -494,7 +497,7 @@
     }
     .panel-heading { margin: 0 0 16px; font-size: 16px; font-weight: 900; letter-spacing: .04em; }
     .progress-row { display: flex; justify-content: space-between; gap: 10px; align-items: end; }
-    .progress-number { font-size: 30px; font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; }
+    .progress-number { --odo-cell: 1.15em; font-size: 30px; font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; }
     .progress-note { color: var(--on-surface-2); font-size: 13px; font-weight: 700; }
     .progress-track { height: 10px; margin: 15px 0 12px; overflow: hidden; border-radius: 999px; background: var(--surface-highest); }
     .progress-fill { width: 0; height: 100%; border-radius: inherit; background: var(--primary); transition: width .5s var(--ease); }
@@ -1418,21 +1421,29 @@
       }
 
       // ===== 机械数字滚轮（odometer）=====
-      // 每一位是一列重复 5 遍的 0-9 滑带：滚动方向恒为向前（和真实里程表一样，
-      // 9→0 也继续往上滚），静止窗口 [10,29] 保证向上还有余量；越过窗口后在停稳时
-      // 利用 0-9 的周期性静默回卷，视觉上完全无感；连续更新时按需延长滑带。
+      // 每一位是一列重复 ODO_ROWS 遍的 0-9 滑带：滚动方向恒为向前（和真实里程表一样，
+      // 9→0 也继续往上滚），静止窗口 [ODO_LOW, ODO_HIGH] 保证向上还有余量；越过窗口后
+      // 在停稳时按模归一化静默回卷，视觉上完全无感；连续更新时按需延长滑带。
       // 数字字形由 ::before + attr(data-d) 生成，不进 textContent / 读屏文本；
       // 真实文本放在 .sr-only 里，保持 #scoreValue 等节点的文字与原来完全一致。
-      const ODO_ROWS = 5;
+      // 滑带长度原来是硬编码的 5 轮（50 格）；其实有 c0fd907 的按需延长 + 停稳回卷，
+      // 3 轮就够用，三个读数因此少 40% 的单元格（6 位数时 900 → 540 个节点）。
+      const ODO_ROWS = 3;
+      const ODO_CELLS = ODO_ROWS * 10;    // 滑带基准长度；越过时按 10 格一段临时加长
       const ODO_LOW = 10;
-      const ODO_HIGH = 29;
-      const ODO_SETTLE_MS = 800; // 略长于 .55s 滚动，作 transitionend 的兜底
+      const ODO_HIGH = ODO_LOW + 9;       // 静止窗口 [10,19]：向上可滚 2 轮，向下回卷仍有 10 格余量
+      const ODO_SETTLE_MS = 800;          // 略长于 .55s 滚动，作 transitionend 的兜底
       const odoCache = new WeakMap();
+
+      // 格高只在整条滑带上用一次 calc(var(--odo-cell) * -pos)：--odo-cell 由 .stat-value /
+      // .progress-number 声明（唯一来源），这里保留同样的 em 兜底，两者必须一致 ——
+      // animation.spec 会断言滑带位移恰好等于 pos × 列的盒高。
+      const ODO_CELL_FALLBACK = '1.15em';
 
       function setOdoTransform(col, pos, animate) {
         const strip = col.firstElementChild;
         if (!animate) strip.style.transition = 'none';
-        strip.style.transform = `translateY(calc(var(--odo-cell, 1.15em) * ${-pos}))`;
+        strip.style.transform = `translateY(calc(var(--odo-cell, ${ODO_CELL_FALLBACK}) * ${-pos}))`;
         if (!animate) { void strip.offsetWidth; strip.style.transition = ''; }
       }
 
@@ -1441,10 +1452,10 @@
         col.className = 'odo-col';
         const strip = document.createElement('span');
         strip.className = 'odo-strip';
-        for (let round = 0; round < ODO_ROWS; round++) for (let d = 0; d < 10; d++) {
+        for (let index = 0; index < ODO_CELLS; index++) {
           const cell = document.createElement('span');
           cell.className = 'odo-cell';
-          cell.dataset.d = d;
+          cell.dataset.d = index % 10;
           strip.appendChild(cell);
         }
         col.appendChild(strip);
@@ -1489,13 +1500,15 @@
           col.dataset.pos = rest;
           setOdoTransform(col, rest, false);
           // 回卷后释放临时扩展，避免反复操作使 DOM 永久增长。
-          while (strip.children.length > ODO_ROWS * 10) strip.lastElementChild.remove();
+          while (strip.children.length > ODO_CELLS) strip.lastElementChild.remove();
         };
         const timer = setTimeout(settle, ODO_SETTLE_MS + parseFloat(strip.style.transitionDelay || '0'));
         strip.addEventListener('transitionend', settle, { once: true });
       }
 
       function setOdometer(el, value) {
+        // 分数不再分组，format() 只会产出纯数字；滚轮因此没有分隔符列，
+        // 位数就是 .odo-col 的数量（原先的 .odo-sep 分支已无输入可走，删掉）。
         const text = format(value);
         let odo = odoCache.get(el);
         // 位数变化时整组重建：新位从 0 起滚，和里程表进位手感一致。
@@ -1510,17 +1523,11 @@
           odo = { text, cols: [], live, wrap };
           const targets = [];
           for (const ch of text) {
-            if (ch >= '0' && ch <= '9') {
-              const col = buildOdoColumn(0); // 新位先从 0 亮相，稍后就位滚动
-              wrap.appendChild(col);
-              odo.cols.push(col);
-              targets.push(Number(ch));
-            } else {
-              const sep = document.createElement('span');
-              sep.className = 'odo-sep';
-              sep.dataset.d = ch;
-              wrap.appendChild(sep);
-            }
+            if (ch < '0' || ch > '9') continue;
+            const col = buildOdoColumn(0); // 新位先从 0 亮相，稍后就位滚动
+            wrap.appendChild(col);
+            odo.cols.push(col);
+            targets.push(Number(ch));
           }
           odoCache.set(el, odo);
           live.textContent = text;
@@ -1532,8 +1539,7 @@
         let digitIndex = 0;
         for (const ch of text) {
           if (ch < '0' || ch > '9') continue;
-          const col = odo.cols[digitIndex];
-          rollOdoColumn(col, Number(ch), (odo.cols.length - 1 - digitIndex) * odometerStagger());
+          rollOdoColumn(odo.cols[digitIndex], Number(ch), (odo.cols.length - 1 - digitIndex) * odometerStagger());
           digitIndex++;
         }
         odo.text = text;
