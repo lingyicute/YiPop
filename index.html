@@ -1471,7 +1471,7 @@
       function setOdometer(el, value) {
         const text = format(value);
         let odo = odoCache.get(el);
-        // 位数（含千分位）变化时整组重建：新位从 0 起滚，和里程表进位手感一致。
+        // 位数变化时整组重建：新位从 0 起滚，和里程表进位手感一致。
         if (!odo || odo.text.length !== text.length) {
           el.textContent = '';
           const live = document.createElement('span');
@@ -1984,7 +1984,7 @@
       function scoreFor(count) { return count * count * 5; }
       function cloneBoard(board) { return board.map(row => row.slice()); }
       function countRemaining() { return state.board.flat().filter(v => v !== null).length; }
-      function format(value) { return Number(value || 0).toLocaleString('zh-CN'); }
+      function format(value) { return String(Number(value) || 0); } // 分数不加千分位分隔符，纯数字
 
       function saveBest() { try { localStorage.setItem(STORAGE.best, JSON.stringify(bestScores)); } catch (_) {} }
       function saveGame() {

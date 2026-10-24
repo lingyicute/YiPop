@@ -39,10 +39,10 @@ test('settles a terminal unfinished save exactly once', async ({ page }) => {
   const board = emptyBoard(); board[7][0] = 0;
   await seed(page, savedGame(board));
   await expect(page.locator('#modalLayer')).toBeVisible();
-  await expect(page.locator('#scoreValue')).toHaveText('2,080');
+  await expect(page.locator('#scoreValue')).toHaveText('2080');
   expect((await readGame(page)).gameOver).toBe(true);
   await page.reload();
-  await expect(page.locator('#bestValue')).toHaveText('2,080');
+  await expect(page.locator('#bestValue')).toHaveText('2080');
   await expect(page.locator('#scoreValue')).toHaveText('0');
 });
 

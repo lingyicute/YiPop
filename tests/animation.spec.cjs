@@ -77,7 +77,7 @@ test('settles bonus once, undo restores pre-move state, and redo is deterministi
   const board = emptyBoard(); board[6][0] = board[7][0] = 0;
   await seed(page, savedGame(board));
   await page.locator('.tile').first().click();
-  await expect(page.locator('#scoreValue')).toHaveText('2,120');
+  await expect(page.locator('#scoreValue')).toHaveText('2120');
   await expect(page.locator('#movesValue')).toHaveText('2');
   await page.locator('[data-action="close"]').click();
   await expect(page.locator('#modalLayer')).toBeHidden();
@@ -85,7 +85,7 @@ test('settles bonus once, undo restores pre-move state, and redo is deterministi
   await expect(page.locator('#scoreValue')).toHaveText('100');
   expect((await readGame(page)).board).toEqual(board);
   await page.locator('.tile').first().click();
-  await expect(page.locator('#scoreValue')).toHaveText('2,120');
+  await expect(page.locator('#scoreValue')).toHaveText('2120');
 });
 
 test('persists an in-progress record across restart and reload', async ({ page }) => {
@@ -135,25 +135,25 @@ test('score renders as rolling odometer columns with intact accessible text', as
   await expect(page.locator('#scoreValue')).toHaveText('100');
   expect(await page.locator('#scoreValue .odo-col').count()).toBe(3);
   await page.locator('.tile').first().click();
-  await expect(page.locator('#scoreValue')).toHaveText('2,120');
+  await expect(page.locator('#scoreValue')).toHaveText('2120');
   expect(await page.locator('#scoreValue .odo-col').count()).toBe(4);
-  expect(await page.locator('#scoreValue .odo-sep').count()).toBe(1);
+  expect(await page.locator('#scoreValue .odo-sep').count()).toBe(0); // 分数不带千分位，无分隔符列
   // 停稳后每位滑带的偏移必须恰好落在目标数字上（pos % 10），且读屏文本与可见值一致。
   await page.waitForTimeout(1200);
   const digits = await page.locator('#scoreValue .odo-col').evaluateAll(cols =>
     cols.map(col => Number(col.dataset.pos) % 10));
   expect(digits).toEqual([2, 1, 2, 0]);
-  expect(await page.locator('#scoreValue .sr-only').textContent()).toBe('2,120');
+  expect(await page.locator('#scoreValue .sr-only').textContent()).toBe('2120');
 });
 
 test('score odometer stays on a single line in a narrow card', async ({ page }) => {
   // 回归：数字列是相邻 inline-block，元素边界天然是断行点；窄屏（280px）里
-  // 旧的纯文本 "12,345" 不会断，滚轮却会折成两行。.odo 必须 nowrap。
+  // 纯文本数字不会断，滚轮却会折成两行。.odo 必须 nowrap。
   await page.setViewportSize({ width: 280, height: 700 });
-  const board = emptyBoard();
-  board[7][0] = board[7][1] = 0; // 保留一步合法移动，避免加载即结算加成
-  await seed(page, savedGame(board, { score: 12345 }));
-  await expect(page.locator('#scoreValue')).toHaveText('12,345');
+  const board = emptyBoard(14);
+  board[13][0] = board[13][1] = board[12][0] = board[12][1] = 0; // 保留合法移动，避免加载即结算加成
+  await seed(page, savedGame(board, { difficulty: 'expert', score: 102345 }));
+  await expect(page.locator('#scoreValue')).toHaveText('102345');
   const layout = await page.locator('#scoreValue').evaluate(sv => {
     const parts = [...sv.querySelectorAll('.odo-col, .odo-sep')];
     const rows = new Set(parts.map(p => Math.round(p.getBoundingClientRect().top)));
