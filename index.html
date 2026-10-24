@@ -1410,7 +1410,7 @@
       // ===== 机械数字滚轮（odometer）=====
       // 每一位是一列重复 5 遍的 0-9 滑带：滚动方向恒为向前（和真实里程表一样，
       // 9→0 也继续往上滚），静止窗口 [10,29] 保证向上还有余量；越过窗口后在停稳时
-      // 利用 0-9 的周期性静默回卷两圈，视觉上完全无感。
+      // 利用 0-9 的周期性静默回卷，视觉上完全无感；连续更新时按需延长滑带。
       // 数字字形由 ::before + attr(data-d) 生成，不进 textContent / 读屏文本；
       // 真实文本放在 .sr-only 里，保持 #scoreValue 等节点的文字与原来完全一致。
       const ODO_ROWS = 5;
@@ -1450,22 +1450,39 @@
         const delta = (digit - pos % 10 + 10) % 10;
         if (!delta) return;
         const target = pos + delta;
+        // 连续撤销可能在上一滚停稳前推进超过整条滑带。先补足完整周期，
+        // 保证动画途经的每一格都有数字，而不是等停稳后才修复空白。
+        while (strip.children.length <= target) {
+          const start = strip.children.length;
+          for (let d = 0; d < 10; d++) {
+            const cell = document.createElement('span');
+            cell.className = 'odo-cell';
+            cell.dataset.d = (start + d) % 10;
+            strip.appendChild(cell);
+          }
+        }
         col.dataset.pos = target;
         setOdoTransform(col, target, true);
         if (target <= ODO_HIGH) return;
         // 越过静止窗口：等这一滚真正停稳（transitionend，超时兜底）后，
-        // 利用 0-9 周期性静默回卷两圈，把偏移收回窗口内。
+        // 按模归一化，不能只减固定圈数：快速更新可能已推进了任意多圈。
         const snap = (Number(col.dataset.snap) || 0) + 1;
         col.dataset.snap = snap;
+        let settled = false;
         const settle = () => {
+          if (settled) return;
+          settled = true;
+          clearTimeout(timer);
+          strip.removeEventListener('transitionend', settle);
           if (Number(col.dataset.snap) !== snap) return; // 停稳前又有新滚动，交给它自己的回卷
-          const rest = Number(col.dataset.pos) - 20;
-          if (rest < ODO_LOW || rest > ODO_HIGH) return;
+          const rest = ODO_LOW + Number(col.dataset.pos) % 10;
           col.dataset.pos = rest;
           setOdoTransform(col, rest, false);
+          // 回卷后释放临时扩展，避免反复操作使 DOM 永久增长。
+          while (strip.children.length > ODO_ROWS * 10) strip.lastElementChild.remove();
         };
+        const timer = setTimeout(settle, ODO_SETTLE_MS + parseFloat(strip.style.transitionDelay || '0'));
         strip.addEventListener('transitionend', settle, { once: true });
-        setTimeout(settle, ODO_SETTLE_MS + parseFloat(strip.style.transitionDelay || '0'));
       }
 
       function setOdometer(el, value) {

@@ -146,6 +146,44 @@ test('score renders as rolling odometer columns with intact accessible text', as
   expect(await page.locator('#scoreValue .sr-only').textContent()).toBe('2120');
 });
 
+test('rapid consecutive undos keep odometer digits within the strip and reclaim extra cells', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  const board = emptyBoard();
+  for (let c = 0; c < 7; c++) board[6][c] = board[7][c] = c % 4;
+  await seed(page, savedGame(board));
+  // Four legal moves build real undo history: 100 → 120 → 140 → 160 → 180.
+  for (let i = 0; i < 4; i++) {
+    await page.locator('.tile').first().click();
+    await expect(page.locator('#scoreValue')).toHaveText(String(120 + i * 20));
+  }
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.waitForTimeout(1100);
+  await page.clock.install();
+  await page.clock.pauseAt(Date.now());
+  for (const score of [160, 140, 120, 100]) {
+    await page.locator('#undoButton').evaluate(button => button.click());
+    await expect(page.locator('#scoreValue')).toHaveText(String(score));
+    // Check capacity BEFORE settling, not only the accessible text or final position.
+    const inBounds = await page.locator('#scoreValue .odo-col').evaluateAll(cols =>
+      cols.every(col => Number(col.dataset.pos) < col.firstElementChild.children.length));
+    expect(inBounds).toBe(true);
+    await page.clock.runFor(100);
+  }
+  await page.clock.runFor(1500);
+  const columns = await page.locator('#scoreValue .odo-col').evaluateAll(cols => cols.map(col => {
+    const pos = Number(col.dataset.pos);
+    const cell = col.firstElementChild.children[pos];
+    return {
+      pos, count: col.firstElementChild.children.length,
+      digit: cell?.dataset.d,
+      aligned: !!cell && Math.abs(cell.getBoundingClientRect().top - col.getBoundingClientRect().top) < 1,
+    };
+  }));
+  expect(columns.map(col => col.digit)).toEqual(['1', '0', '0']);
+  expect(columns.every(col => col.pos >= 10 && col.pos <= 29 && col.count === 50 && col.aligned)).toBe(true);
+  expect((await readGame(page)).score).toBe(100);
+});
+
 test('score odometer stays on a single line in a narrow card', async ({ page }) => {
   // 回归：数字列是相邻 inline-block，元素边界天然是断行点；窄屏（280px）里
   // 纯文本数字不会断，滚轮却会折成两行。.odo 必须 nowrap。
