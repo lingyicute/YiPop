@@ -85,3 +85,10 @@ test('head prepaint accent whitelist matches the palette swatches', () => {
   const swatches = [...html.matchAll(/class="swatch"[^>]*data-accent="([a-z]+)"/g)].map(match => match[1]);
   assert.deepEqual(whitelist, swatches);
 });
+
+test('static goal text matches the un-grouped score format', () => {
+  // a395fc2 去掉了千分位，但静态标记还写着「目标 2,500」，首帧会闪一下旧文案。
+  const goal = html.match(/id="goalText">([^<]*)</)[1];
+  assert.equal(goal, '目标 2500');
+  assert.equal(/[\d],[\d]/.test(goal), false);
+});
