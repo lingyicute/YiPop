@@ -1982,6 +1982,10 @@
         if (els.modalLayer.hidden) {
           lastFocusedBeforeModal = document.activeElement;
           previousBodyOverflow = document.body.style.overflow;
+          previousBodyPaddingRight = document.body.style.paddingRight;
+          // 隐藏滚动条会导致页面宽度抖动，用内边距补偿滚动条宽度
+          const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+          if (scrollbarWidth > 0) document.body.style.paddingRight = `${scrollbarWidth}px`;
         }
         els.modal.innerHTML = html;
         els.modal.dataset.dismissible = String(dismissible);
@@ -2008,6 +2012,7 @@
         $('header').inert = false;
         $('main').inert = false;
         document.body.style.overflow = previousBodyOverflow;
+        document.body.style.paddingRight = previousBodyPaddingRight;
         const previous = lastFocusedBeforeModal;
         lastFocusedBeforeModal = null;
         if (previous?.isConnected && previous !== document.body && !previous.closest('[hidden], [inert]')) {
