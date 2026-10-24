@@ -21,12 +21,12 @@ import tempfile
 import urllib.request
 
 FONT_URL = "https://raw.githubusercontent.com/lingyicute/Nebulove/main/Nebulove.woff2"
-HERE = os.path.dirname(os.path.abspath(__file__))
-DEFAULT_HTML = os.path.join(os.path.dirname(HERE), "index.html")
+HERE = Path(__file__).resolve().parent
+DEFAULT_HTML = str(HERE.parent / "index.html")
 ASCII = {chr(c) for c in range(32, 127)}
 PUNCT = set("：，。！？；‘’“”（）【】—…·《》×＝÷＋－、")
 FONT_FACE_RE = re.compile(r'@font-face\s*\{[^}]*\}', re.S | re.I)
-FAMILY_RE = re.compile(r"font-family\s*:\s*(['\"]?)Nebulove\1\s*;", re.I)
+FAMILY_RE = re.compile(r"font-family\s*:[^;]*Nebulove[^;]*;", re.I)
 GENERATED_COMMENT_RE = re.compile(
     r'/\* ===== Nebulove 子集（内嵌，离线可用）=====(?:(?!\*/).)*\*/\s*$', re.S
 )
@@ -138,7 +138,11 @@ def atomic_write(path, content):
         with tempfile.NamedTemporaryFile(dir=path.parent, prefix=f".{path.name}.", delete=False) as output:
             temporary = Path(output.name)
             output.write(content.encode("utf-8"))
-        os.chmod(temporary, path.stat().st_mode & 0o777)
+        try:
+            mode = path.stat().st_mode & 0o777
+        except FileNotFoundError:
+            mode = 0o644  # 新建文件时的默认权限，避免首次创建时崩溃
+        os.chmod(temporary, mode)
         os.replace(temporary, path)
     finally:
         if temporary is not None:
