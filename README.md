@@ -20,7 +20,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-AGPL--3.0-orange.svg" alt="License: AGPL-3.0"></a>
-  <a href="index.html"><img src="https://img.shields.io/badge/Single%20File-160%20KB-blue" alt="Single File 160 KB"></a>
+  <a href="index.html"><img src="https://img.shields.io/badge/Single%20File-about%20210%20KB-blue" alt="Single File about 210 KB"></a>
   <a href="https://github.com/lingyicute/YiPop"><img src="https://img.shields.io/badge/Dependencies-Zero-brightgreen" alt="Zero Dependencies"></a>
   <a href="https://github.com/lingyicute/YiPop"><img src="https://img.shields.io/badge/Ads%20%26%20Trackers-Zero-brightgreen" alt="No Ads No Tracking"></a>
   <a href="https://github.com/lingyicute/YiPop"><img src="https://img.shields.io/github/stars/lingyicute/YiPop?style=flat&color=yellow" alt="GitHub Stars"></a>
@@ -68,7 +68,7 @@ Popstar games are deceptively simple — until you actually try to write one. Mo
   - Day / Night mode with the initial choice taken from `prefers-color-scheme`, live `theme-color` updates, and `prefers-reduced-motion` support.
 
 - **🔒 100% Privacy, Offline & Ad-Free**
-  - **Zero network requests** — no assets are fetched, because there are none.
+  - **Zero network requests** — no assets are fetched, because there are none: the icons and favicons are inlined as `data:` URIs too, so even `index.html` on its own is fully self-contained.
   - Preferences, records and the saved game live in `localStorage` (`yipop-*`); nothing is uploaded.
   - Licensed under **AGPL-3.0**.
 

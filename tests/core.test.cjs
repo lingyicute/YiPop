@@ -56,3 +56,22 @@ test('generated boards have valid colors and at least one move', () => {
     }
   }
 });
+
+// 下面几条都是纯静态检查：不启动浏览器，守住「单文件 + 首帧主题」这两条容易被悄悄破坏的前提。
+const html = fs.readFileSync(path.join(__dirname, '../index.html'), 'utf8');
+
+test('icons are inlined byte-for-byte from assets/', () => {
+  // 「单文件」是这个项目的招牌：index.html 单独下载/内嵌时不能再去请求 assets/。
+  const inlined = (pattern, file) => {
+    const uri = html.match(pattern)?.[1];
+    assert.ok(uri, `${file} 没有内联进 index.html`);
+    assert.ok(Buffer.from(uri, 'base64').equals(fs.readFileSync(path.join(__dirname, '../assets', file))),
+      `${file} 的内联数据与 assets/${file} 不一致（改图标后要同步内联）`);
+  };
+  inlined(/rel="icon" href="data:image\/svg\+xml;base64,([^"]+)"/, 'icon.svg');
+  inlined(/rel="icon" href="data:image\/png;base64,([^"]+)" type="image\/png"/, 'favicon-32.png');
+  inlined(/rel="apple-touch-icon" href="data:image\/png;base64,([^"]+)"/, 'apple-touch-icon.png');
+  inlined(/rel="shortcut icon" href="data:image\/x-icon;base64,([^"]+)"/, 'favicon.ico');
+  // 反过来也成立：页面里不应再出现指向 assets/ 的外链（否则单文件下载会 404）。
+  assert.equal(/["']assets\//.test(html), false);
+});
