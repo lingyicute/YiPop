@@ -319,6 +319,15 @@
     /* 标签直接使用容器配对色：叠加透明度后，浅色主题的青/绿与深色主题的主卡片都会跌破 4.5:1。 */
     .stat-label { margin-bottom: 3px; font-size: 14px; font-weight: 800; letter-spacing: .08em; }
     .stat-value { max-width: 100%; font-size: clamp(28px, 4vw, 38px); font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; overflow: hidden; text-overflow: ellipsis; }
+    /* 机械数字滚轮：每一位是一列 0-9 的滑带，溢出窗口只露出当前数字，滚动方向恒为向前。
+       数字字形走 ::before + attr()，不进入 textContent/读屏；真实文本由 .sr-only 提供。 */
+    .odo { display: inline-block; vertical-align: top; }
+    .odo-col, .odo-sep { display: inline-block; height: var(--odo-cell, 1.15em); line-height: var(--odo-cell, 1.15em); vertical-align: top; }
+    .odo-col { overflow: hidden; }
+    .odo-strip { display: block; transition: transform .55s var(--ease); }
+    .odo-cell { display: block; height: var(--odo-cell, 1.15em); line-height: var(--odo-cell, 1.15em); text-align: center; }
+    .odo-cell::before, .odo-sep::before { content: attr(data-d); }
+    .sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
     .round-action {
       width: 68px;
       height: 68px;
@@ -793,7 +802,7 @@
     }
 
     @media (prefers-reduced-motion: reduce) {
-      *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .001ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+      *, *::before, *::after { scroll-behavior: auto !important; animation-duration: .001ms !important; animation-delay: 0ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; transition-delay: 0ms !important; }
     }
   </style>
   <style>
@@ -1387,15 +1396,125 @@
         const config = CONFIGS[state.difficulty];
         const remaining = countRemaining();
         const shownBest = Math.max(Number(bestScores[state.difficulty]) || 0, state.score);
-        els.score.textContent = format(state.score);
-        els.best.textContent = format(shownBest);
-        els.progressScore.textContent = format(state.score);
+        setOdometer(els.score, state.score);
+        setOdometer(els.best, shownBest);
+        setOdometer(els.progressScore, state.score);
         els.remaining.textContent = remaining;
         els.moves.textContent = state.moves;
         els.undo.disabled = !state.history.length;
         const progress = Math.min(100, Math.round(state.score / config.goal * 100));
         els.progressFill.style.width = `${progress}%`;
         els.progressTrack.setAttribute('aria-valuenow', progress);
+      }
+
+      // ===== 机械数字滚轮（odometer）=====
+      // 每一位是一列重复 5 遍的 0-9 滑带：滚动方向恒为向前（和真实里程表一样，
+      // 9→0 也继续往上滚），静止窗口 [10,29] 保证向上还有余量；越过窗口后在停稳时
+      // 利用 0-9 的周期性静默回卷两圈，视觉上完全无感。
+      // 数字字形由 ::before + attr(data-d) 生成，不进 textContent / 读屏文本；
+      // 真实文本放在 .sr-only 里，保持 #scoreValue 等节点的文字与原来完全一致。
+      const ODO_ROWS = 5;
+      const ODO_LOW = 10;
+      const ODO_HIGH = 29;
+      const ODO_SETTLE_MS = 800; // 略长于 .55s 滚动，作 transitionend 的兜底
+      const odoCache = new WeakMap();
+
+      function setOdoTransform(col, pos, animate) {
+        const strip = col.firstElementChild;
+        if (!animate) strip.style.transition = 'none';
+        strip.style.transform = `translateY(calc(var(--odo-cell, 1.15em) * ${-pos}))`;
+        if (!animate) { void strip.offsetWidth; strip.style.transition = ''; }
+      }
+
+      function buildOdoColumn(digit) {
+        const col = document.createElement('span');
+        col.className = 'odo-col';
+        const strip = document.createElement('span');
+        strip.className = 'odo-strip';
+        for (let round = 0; round < ODO_ROWS; round++) for (let d = 0; d < 10; d++) {
+          const cell = document.createElement('span');
+          cell.className = 'odo-cell';
+          cell.dataset.d = d;
+          strip.appendChild(cell);
+        }
+        col.appendChild(strip);
+        col.dataset.pos = ODO_LOW + digit;
+        setOdoTransform(col, ODO_LOW + digit, false);
+        return col;
+      }
+
+      function rollOdoColumn(col, digit, delayMs = 0) {
+        const strip = col.firstElementChild;
+        strip.style.transitionDelay = `${delayMs}ms`;
+        const pos = Number(col.dataset.pos);
+        const delta = (digit - pos % 10 + 10) % 10;
+        if (!delta) return;
+        const target = pos + delta;
+        col.dataset.pos = target;
+        setOdoTransform(col, target, true);
+        if (target <= ODO_HIGH) return;
+        // 越过静止窗口：等这一滚真正停稳（transitionend，超时兜底）后，
+        // 利用 0-9 周期性静默回卷两圈，把偏移收回窗口内。
+        const snap = (Number(col.dataset.snap) || 0) + 1;
+        col.dataset.snap = snap;
+        const settle = () => {
+          if (Number(col.dataset.snap) !== snap) return; // 停稳前又有新滚动，交给它自己的回卷
+          const rest = Number(col.dataset.pos) - 20;
+          if (rest < ODO_LOW || rest > ODO_HIGH) return;
+          col.dataset.pos = rest;
+          setOdoTransform(col, rest, false);
+        };
+        strip.addEventListener('transitionend', settle, { once: true });
+        setTimeout(settle, ODO_SETTLE_MS + parseFloat(strip.style.transitionDelay || '0'));
+      }
+
+      function setOdometer(el, value) {
+        const text = format(value);
+        let odo = odoCache.get(el);
+        // 位数（含千分位）变化时整组重建：新位从 0 起滚，和里程表进位手感一致。
+        if (!odo || odo.text.length !== text.length) {
+          el.textContent = '';
+          const live = document.createElement('span');
+          live.className = 'sr-only';
+          const wrap = document.createElement('span');
+          wrap.className = 'odo';
+          wrap.setAttribute('aria-hidden', 'true');
+          el.append(live, wrap);
+          odo = { text, cols: [], live, wrap };
+          const targets = [];
+          for (const ch of text) {
+            if (ch >= '0' && ch <= '9') {
+              const col = buildOdoColumn(0); // 新位先从 0 亮相，稍后就位滚动
+              wrap.appendChild(col);
+              odo.cols.push(col);
+              targets.push(Number(ch));
+            } else {
+              const sep = document.createElement('span');
+              sep.className = 'odo-sep';
+              sep.dataset.d = ch;
+              wrap.appendChild(sep);
+            }
+          }
+          odoCache.set(el, odo);
+          live.textContent = text;
+          void wrap.offsetWidth; // 强制回流：让 0 的初始位置先生效，再滚向目标
+          targets.forEach((digit, i) => rollOdoColumn(odo.cols[i], digit, (targets.length - 1 - i) * odometerStagger()));
+          return;
+        }
+        // 进位从右往左传：越靠右的位越先起滚，模拟机械表的传递感。
+        let digitIndex = 0;
+        for (const ch of text) {
+          if (ch < '0' || ch > '9') continue;
+          const col = odo.cols[digitIndex];
+          rollOdoColumn(col, Number(ch), (odo.cols.length - 1 - digitIndex) * odometerStagger());
+          digitIndex++;
+        }
+        odo.text = text;
+        odo.live.textContent = text;
+      }
+
+      function odometerStagger() {
+        return prefersReducedMotion() ? 0 : 45;
       }
 
       function findGroup(board, row, col) {
