@@ -2027,13 +2027,16 @@
       function showToast(message) {
         clearTimeout(toastTimer);
         clearTimeout(toastHideTimer);
-        els.toast.innerHTML = `<div class="toast">${message}</div>`;
+        const toast = document.createElement('div');
+        toast.className = 'toast';
+        toast.textContent = message;
+        els.toast.replaceChildren(toast);
         // 总显示时长仍为 2.2s：在最后 180ms 播放退出动画，然后移除
         toastTimer = setTimeout(() => {
-          const toast = els.toast.firstElementChild;
-          if (!toast) return;
-          toast.classList.add('is-closing');
-          toastHideTimer = setTimeout(() => { els.toast.innerHTML = ''; }, 180);
+          const current = els.toast.firstElementChild;
+          if (!current) return;
+          current.classList.add('is-closing');
+          toastHideTimer = setTimeout(() => { els.toast.replaceChildren(); }, 180);
         }, 2020);
       }
 
@@ -2042,17 +2045,22 @@
         const token = actionToken;
         clearTimeout(comboTimer);
         els.comboLayer.hidden = false;
-        els.comboLayer.innerHTML = '';
+        els.comboLayer.replaceChildren();
         void els.comboLayer.offsetWidth;
         const bubble = document.createElement('div');
         bubble.className = 'combo-bubble';
-        bubble.innerHTML = subtitle ? `${title}<small>${subtitle}</small>` : title;
+        bubble.textContent = title;
+        if (subtitle) {
+          const small = document.createElement('small');
+          small.textContent = subtitle;
+          bubble.appendChild(small);
+        }
         els.comboLayer.appendChild(bubble);
         playTone(880, .14, 'sine', .08);
         setTimeout(() => { if (token === actionToken) playTone(1175, .13, 'triangle', .06); }, 90);
         // 与 comboPop 的 1.6s 动画对齐：停够约一秒再淡出，别再一闪而过。
         comboTimer = setTimeout(() => {
-          els.comboLayer.hidden = true; els.comboLayer.innerHTML = '';
+          els.comboLayer.hidden = true; els.comboLayer.replaceChildren();
         }, 1650);
       }
 
@@ -2072,6 +2080,7 @@
         if (prefersReducedMotion()) return;
         const el = document.createElement('span');
         el.className = 'score-float'; el.textContent = text;
+        el.setAttribute('aria-hidden', 'true');
         el.style.left = `${x}px`; el.style.top = `${y}px`;
         document.body.appendChild(el); setTimeout(() => el.remove(), 850);
       }
@@ -2088,6 +2097,7 @@
 
         const ring = document.createElement('span');
         ring.className = 'blast-ring';
+        ring.setAttribute('aria-hidden', 'true');
         ring.style.left = `${x}px`; ring.style.top = `${y}px`;
         ring.style.setProperty('--blast-size', `${Math.max(18, rect.width * .78)}px`);
         ring.style.setProperty('--particle-color', color);
@@ -2096,6 +2106,7 @@
 
         for (let i = 0; i < total; i++) {
           const p = document.createElement('span'); p.className = 'particle';
+          p.setAttribute('aria-hidden', 'true');
           const angle = (Math.PI * 2 * i / total) + sequenceIndex * .47 + Math.random() * .25;
           const distance = spread * (.58 + Math.random() * .55);
           p.style.left = `${x}px`; p.style.top = `${y}px`;
@@ -2113,6 +2124,7 @@
         const colors = ['#ad6bed','#5aa5ee','#36d3a1','#f0c64f','#f48a63','#ee6295'];
         for (let i = 0; i < 46; i++) {
           const p = document.createElement('span'); p.className = 'particle';
+          p.setAttribute('aria-hidden', 'true');
           p.style.left = `${10 + Math.random() * 80}vw`; p.style.top = `${15 + Math.random() * 30}vh`;
           p.style.setProperty('--x', `${Math.random() * 180 - 90}px`);
           p.style.setProperty('--y', `${120 + Math.random() * 220}px`);
