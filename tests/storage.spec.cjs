@@ -58,6 +58,39 @@ test('sanitizes preferences and best scores', async ({ page }) => {
   await expect(page.locator('.record-row > strong')).toHaveText(['0', '0', '200', '0']);
 });
 
+test('applies the stored theme and accent before the first frame', async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.clear();
+    localStorage.setItem('yipop-prefs-v2', JSON.stringify({ theme: 'light', accent: 'coral', sound: false }));
+    window.themeTrace = { atParse: null, changes: [] };
+    const htmlObserver = new MutationObserver(() => {
+      const root = document.documentElement;
+      if (!root) return;
+      htmlObserver.disconnect();
+      window.themeTrace.atParse = { theme: root.dataset.theme, accent: root.dataset.accent };
+      let last = `${root.dataset.theme}/${root.dataset.accent}`;
+      new MutationObserver(() => {
+        const now = `${root.dataset.theme}/${root.dataset.accent}`;
+        if (now === last) return; // 同值重写（主脚本再校验）不产生视觉变化，忽略。
+        last = now;
+        // body 还没解析 = 仍在 head 阶段 = 首帧之前。
+        window.themeTrace.changes.push({ theme: root.dataset.theme, accent: root.dataset.accent, beforeBody: document.body === null });
+      }).observe(root, { attributes: true, attributeFilter: ['data-theme', 'data-accent'] });
+    });
+    htmlObserver.observe(document, { childList: true, subtree: true });
+  });
+  await page.goto('/');
+  const trace = await page.evaluate(() => window.themeTrace);
+  // 静态标记里的 dark/violet 不该成为首帧：要么解析 <html> 时已是存档值，
+  // 要么在 head 解析期（body 存在前）就切好；正文主脚本不应再改动这两个属性。
+  const prepaint = trace.atParse.theme === 'light' && trace.atParse.accent === 'coral';
+  const fixedDuringHead = trace.changes.length > 0 &&
+    trace.changes.every(c => c.beforeBody && c.theme === 'light' && c.accent === 'coral');
+  expect(prepaint || fixedDuringHead).toBe(true);
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await expect(page.locator('html')).toHaveAttribute('data-accent', 'coral');
+});
+
 test('works when storage throws', async ({ page }) => {
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
