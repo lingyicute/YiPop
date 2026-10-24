@@ -917,11 +917,11 @@
 
         <section class="panel-card">
           <h2 class="panel-heading">游戏难度</h2>
-          <div class="difficulty-options" id="difficultyOptions">
-            <button class="difficulty-button active" type="button" data-difficulty="easy"><span class="check">✓</span>简单</button>
-            <button class="difficulty-button" type="button" data-difficulty="medium"><span class="check">✓</span>中等</button>
-            <button class="difficulty-button" type="button" data-difficulty="hard"><span class="check">✓</span>困难</button>
-            <button class="difficulty-button" type="button" data-difficulty="expert"><span class="check">✓</span>专家</button>
+          <div class="difficulty-options" id="difficultyOptions" role="radiogroup" aria-label="游戏难度">
+            <button class="difficulty-button active" type="button" data-difficulty="easy" role="radio" aria-checked="true"><span class="check">✓</span>简单</button>
+            <button class="difficulty-button" type="button" data-difficulty="medium" role="radio" aria-checked="false"><span class="check">✓</span>中等</button>
+            <button class="difficulty-button" type="button" data-difficulty="hard" role="radio" aria-checked="false"><span class="check">✓</span>困难</button>
+            <button class="difficulty-button" type="button" data-difficulty="expert" role="radio" aria-checked="false"><span class="check">✓</span>专家</button>
           </div>
           <p class="difficulty-detail" id="difficultyDetail">8×8 棋盘 · 4 种颜色 · 适合轻松游玩</p>
         </section>
@@ -1105,6 +1105,17 @@
           const button = e.target.closest('[data-difficulty]');
           if (!button || button.dataset.difficulty === state.difficulty) return;
           startNewGame(button.dataset.difficulty, true);
+        });
+        els.difficultyOptions.addEventListener('keydown', e => {
+          const buttons = $$('.difficulty-button', els.difficultyOptions);
+          const index = buttons.indexOf(e.target);
+          const delta = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+          if (index < 0 || (!delta && !['Home', 'End'].includes(e.key))) return;
+          e.preventDefault();
+          const next = e.key === 'Home' ? 0 : e.key === 'End' ? buttons.length - 1 :
+            (index + delta + buttons.length) % buttons.length;
+          buttons[next].focus();
+          if (buttons[next].dataset.difficulty !== state.difficulty) startNewGame(buttons[next].dataset.difficulty, true);
         });
 
         els.board.addEventListener('animationend', e => {
@@ -1298,7 +1309,8 @@
         $$('.difficulty-button').forEach(b => {
           const selected = b.dataset.difficulty === state.difficulty;
           b.classList.toggle('active', selected);
-          b.setAttribute('aria-pressed', String(selected));
+          b.setAttribute('aria-checked', String(selected));
+          b.tabIndex = selected ? 0 : -1;
         });
         renderBoard(settling);
         updateStats();
