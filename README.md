@@ -20,7 +20,7 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-AGPL--3.0-orange.svg" alt="License: AGPL-3.0"></a>
-  <a href="index.html"><img src="https://img.shields.io/badge/Single%20File-153%20KB-blue" alt="Single File 153 KB"></a>
+  <a href="index.html"><img src="https://img.shields.io/badge/Single%20File-160%20KB-blue" alt="Single File 160 KB"></a>
   <a href="https://github.com/lingyicute/YiPop"><img src="https://img.shields.io/badge/Dependencies-Zero-brightgreen" alt="Zero Dependencies"></a>
   <a href="https://github.com/lingyicute/YiPop"><img src="https://img.shields.io/badge/Ads%20%26%20Trackers-Zero-brightgreen" alt="No Ads No Tracking"></a>
   <a href="https://github.com/lingyicute/YiPop"><img src="https://img.shields.io/github/stars/lingyicute/YiPop?style=flat&color=yellow" alt="GitHub Stars"></a>
@@ -50,6 +50,8 @@ Popstar games are deceptively simple — until you actually try to write one. Mo
 - **🏆 Clear, Honest Feedback**
   - **Group preview** — hovering or focusing a star highlights the entire group it would pop and floats a **+N** score, so you never click blind.
   - **Chain explosions** — removals run in BFS order, so each star visibly ignites its neighbours; particles, blast rings and a combo flash punctuate big groups.
+  - **Mechanical score reel** — the live score readouts roll up digit by digit like an odometer, carrying right to left, while screen readers keep the exact formatted number.
+  - **Finale sweep** — when no move remains, the leftover stars detonate column by column from the right edge before the result screen arrives.
   - **Leftover bonus** — finishing with fewer than 10 stars left pays a bonus (2000 − n²×20), so it pays to plan the endgame.
   - **Undo** (`Z`) and **instant restart** (`R`), both one keystroke away.
 
