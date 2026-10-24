@@ -91,6 +91,21 @@ test('applies the stored theme and accent before the first frame', async ({ page
   await expect(page.locator('html')).toHaveAttribute('data-accent', 'coral');
 });
 
+test('falls back to legacy prefs when v2 is corrupt JSON', async ({ page }) => {
+  // 回归：head 的预绘制快路径原来把两次 JSON.parse 串在同一个 try 里，
+  // v2 一旦是坏 JSON 就整段放弃，把仍然有效的 v1 和首帧主题一起丢掉。
+  await page.addInitScript(() => {
+    localStorage.clear();
+    localStorage.setItem('yipop-prefs-v2', '{not json');
+    localStorage.setItem('yipop-prefs-v1', JSON.stringify({ theme: 'light', accent: 'coral', sound: false }));
+  });
+  await page.goto('/');
+  await expect(page.locator('html')).toHaveAttribute('data-theme', 'light');
+  await expect(page.locator('html')).toHaveAttribute('data-accent', 'coral');
+  // 主脚本与预绘制脚本必须给出同一个结论，否则首帧仍会闪一次默认配色。
+  await expect(page.locator('#bestValue')).toHaveText('0');
+});
+
 test('works when storage throws', async ({ page }) => {
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
