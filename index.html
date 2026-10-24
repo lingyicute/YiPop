@@ -985,6 +985,7 @@
       let audioMaster = null;
       let audioLimiter = null;
       let audioPrimed = false;
+      let audioUnlockPromise = null;
       let audioToken = 0;
       const activeTones = new Set();
       // 音效总音量倍数：整体放大所有音效（点消除、撤销、结算等）。想更大声就调大这个数值。
@@ -2144,6 +2145,7 @@
         if (audioContext?.state === 'closed') {
           stopAllTones();
           audioContext = null; audioMaster = null; audioLimiter = null; audioPrimed = false;
+          audioUnlockPromise = null;
         }
         if (!audioContext) {
           const AudioCtx = window.AudioContext || window.webkitAudioContext;
@@ -2169,21 +2171,25 @@
         if (!state.sound) return Promise.resolve(null);
         const ctx = ensureAudio();
         if (!ctx) return Promise.resolve(null);
+        if (ctx.state === 'running') return Promise.resolve(ctx);
+        if (audioUnlockPromise) return audioUnlockPromise;
         let ready;
-        try { ready = ctx.state === 'running' ? Promise.resolve() : ctx.resume(); }
+        try { ready = ctx.resume(); }
         catch (_) { return Promise.resolve(null); }
-        return Promise.resolve(ready).then(() => {
+        audioUnlockPromise = Promise.resolve(ready).then(() => {
           // 一帧静音缓冲可解锁部分 iOS / 内嵌浏览器的 Web Audio 输出。
-          if (!audioPrimed) {
+          if (!audioPrimed && ctx.state === 'running') {
             const source = ctx.createBufferSource();
             source.buffer = ctx.createBuffer(1, 1, ctx.sampleRate);
             source.connect(audioMaster || ctx.destination);
             source.onended = () => source.disconnect();
-            source.start(0);
+            try { source.start(0); } catch (_) {}
             audioPrimed = true;
           }
+          audioUnlockPromise = null;
           return ctx;
-        }).catch(() => null);
+        }).catch(() => { audioUnlockPromise = null; return null; });
+        return audioUnlockPromise;
       }
 
       function stopAllTones() {
