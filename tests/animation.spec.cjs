@@ -115,6 +115,19 @@ test('a popover opened mid-explosion is closed when the result dialog opens', as
   await expect(page.locator('#menuButton')).toHaveAttribute('aria-expanded', 'false');
 });
 
+test('combo bubble stays on screen through the longer window', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  await page.clock.install();
+  await page.clock.pauseAt(Date.now()); // 冻结真实走时，runFor 才是唯一的时钟来源
+  await seed(page, fullGame());
+  await page.locator('.tile').first().evaluate(tile => tile.click());
+  // 64 颗连锁约 3.7s 后结算并弹出提示；旧的 1080ms 停留会在 ~4.8s 就把它藏掉。
+  await page.clock.runFor(4900);
+  await expect(page.locator('#comboLayer')).toBeVisible();
+  await page.clock.runFor(600); // ~5.5s：1.6s 动画淡出完毕后才移除
+  await expect(page.locator('#comboLayer')).toBeHidden();
+});
+
 for (const [stage, elapsed] of [['fall', 500], ['column shift', 950]]) {
   test(`undo cancels ${stage} without a late score or save`, async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'no-preference' });

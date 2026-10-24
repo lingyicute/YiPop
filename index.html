@@ -774,7 +774,7 @@
       text-align: center;
       text-wrap: balance;
       transform-origin: center;
-      animation: comboPop .72s var(--ease) forwards;
+      animation: comboPop 1.6s var(--ease) forwards;
     }
     .combo-bubble small {
       display: block;
@@ -1856,9 +1856,10 @@
         els.comboLayer.appendChild(bubble);
         playTone(880, .14, 'sine', .08);
         setTimeout(() => { if (token === actionToken) playTone(1175, .13, 'triangle', .06); }, 90);
+        // 与 comboPop 的 1.6s 动画对齐：停够约一秒再淡出，别再一闪而过。
         comboTimer = setTimeout(() => {
           els.comboLayer.hidden = true; els.comboLayer.innerHTML = '';
-        }, 1080);
+        }, 1650);
       }
 
       function prefersReducedMotion() {
