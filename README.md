@@ -3,7 +3,7 @@
 <br>
 <br>
 <p align="center">
-  <img src="./assets/icon.png" alt="YiPop Logo" width="96" height="96" onerror="this.style.display='none'"/>
+  <img src="./assets/icon.svg" alt="YiPop Logo" width="96" height="96" onerror="this.style.display='none'"/>
 </p>
 <h1 align="center">YiPop</h1>
 <h3 align="center">A simple and beautiful H5 Popstar.</h3>
