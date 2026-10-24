@@ -1761,6 +1761,9 @@
       let modalCloseTimer = 0;
 
       function openModal(html, dismissible = true) {
+        // 连锁动画期间打开的浮层（如爆炸途中点开的菜单）会原样留在弹窗背后；
+        // 打开弹窗时一并收起，避免遮罩下挂着过期浮层、关闭弹窗后又重新冒出来。
+        closePopovers();
         // 若弹窗正处于关闭动画中，取消待执行的隐藏
         clearTimeout(modalCloseTimer);
         els.modalLayer.classList.remove('is-closing');

@@ -101,6 +101,21 @@ test('persists an in-progress record across restart and reload', async ({ page }
   await expect(page.locator('#bestValue')).toHaveText('20');
 });
 
+test('a popover opened mid-explosion is closed when the result dialog opens', async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: 'no-preference' });
+  // 消掉这 3 颗后棋盘无步可走：本局会在连锁动画结束后直接结算。
+  const board = emptyBoard();
+  board[7][0] = 0; board[7][1] = 0; board[7][2] = 0; board[7][3] = 1; board[7][4] = 2;
+  await seed(page, savedGame(board));
+  await page.locator('.tile[data-row="7"][data-col="0"]').click();
+  await page.locator('#menuButton').click();
+  await expect(page.locator('#menuPopover')).toBeVisible();
+  await page.waitForSelector('#modalLayer:not([hidden])');
+  // 弹窗打开期间浮层必须已收起，不能留在遮罩背后（含 160ms 退出动画）。
+  await expect(page.locator('#menuPopover')).toBeHidden();
+  await expect(page.locator('#menuButton')).toHaveAttribute('aria-expanded', 'false');
+});
+
 for (const [stage, elapsed] of [['fall', 500], ['column shift', 950]]) {
   test(`undo cancels ${stage} without a late score or save`, async ({ page }) => {
     await page.emulateMedia({ reducedMotion: 'no-preference' });
