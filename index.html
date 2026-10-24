@@ -1810,9 +1810,47 @@
         const isRecord = state.score > previousBest;
         if (isRecord) { bestScores[state.difficulty] = state.score; saveBest(); }
         updateStats(); renderBoard(false); saveGame();
-        if (remaining === 0) celebrate();
-        playFinish(remaining === 0 || isRecord);
-        showResult(remaining, bonus, isRecord);
+        if (remaining === 0) {
+          celebrate();
+          playFinish(true);
+          showResult(remaining, bonus, isRecord);
+          return;
+        }
+        // 结局演出：再也消不动的残局从最右列开始、自上而下逐颗引爆，放完再结算。
+        // 撤销 / 重开会推进 actionToken，残留的引爆定时器自动失效。
+        playLeftoverSweep(actionToken, () => {
+          playFinish(isRecord);
+          showResult(remaining, bonus, isRecord);
+        });
+      }
+
+      function playLeftoverSweep(token, done) {
+        const size = CONFIGS[state.difficulty].size;
+        const order = [];
+        for (let c = size - 1; c >= 0; c--) for (let r = 0; r < size; r++) {
+          if (state.board[r][c] !== null) order.push([r, c]);
+        }
+        if (!order.length || prefersReducedMotion()) { done(); return; }
+        const interval = 60;
+        order.forEach(([r, c], index) => {
+          setTimeout(() => {
+            if (token !== actionToken) return;
+            const tile = tileAt(r, c);
+            if (!tile) return;
+            const rect = tile.getBoundingClientRect();
+            const colorClass = [...tile.classList].find(name => /^c\d+$/.test(name)) || 'c0';
+            tile.classList.remove('is-settling', 'group-preview');
+            tile.style.setProperty('--blast-turn', `${index % 2 ? -16 : 16}deg`);
+            tile.classList.add('is-exploding');
+            makeTileBlast(rect, colorClass, index);
+            playChainPop(index, order.length);
+            setTimeout(() => {
+              if (token !== actionToken || !tile.isConnected) return;
+              tile.replaceWith(createEmptyCell(r, c));
+            }, 335);
+          }, index * interval);
+        });
+        setTimeout(() => { if (token === actionToken) done(); }, (order.length - 1) * interval + 430);
       }
 
       function showResult(remaining, bonus, isRecord) {
@@ -1830,7 +1868,11 @@
           </div>
           <div class="modal-actions"><button class="text-button" data-action="close">查看棋盘</button><button class="filled-button" data-action="again">再来一局</button></div>
         `, false);
-        $('[data-action="close"]', els.modal).addEventListener('click', closeModal);
+        $('[data-action="close"]', els.modal).addEventListener('click', () => {
+          closeModal();
+          // 结局演出只是在视觉上清空了棋盘；查看棋盘时按 state 恢复真实残局。
+          renderBoard(true);
+        });
         $('[data-action="again"]', els.modal).addEventListener('click', () => startNewGame(state.difficulty, true));
       }
 
