@@ -75,3 +75,13 @@ test('icons are inlined byte-for-byte from assets/', () => {
   // 反过来也成立：页面里不应再出现指向 assets/ 的外链（否则单文件下载会 404）。
   assert.equal(/["']assets\//.test(html), false);
 });
+
+test('head prepaint accent whitelist matches the palette swatches', () => {
+  // head 里的预绘制快路径必须先知道有哪些配色，而正文的颜色选择器是从 .swatch 的 DOM 读出来的。
+  // 两处一旦不同步，新增配色就会在首帧闪一下 violet —— 正是 c540405 想消灭的现象。
+  const head = html.slice(0, html.indexOf('<body'));
+  const whitelist = head.match(/const accents = \[([^\]]*)\]/)[1]
+    .split(',').map(name => name.trim().replace(/^'|'$/g, '')).filter(Boolean);
+  const swatches = [...html.matchAll(/class="swatch"[^>]*data-accent="([a-z]+)"/g)].map(match => match[1]);
+  assert.deepEqual(whitelist, swatches);
+});

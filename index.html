@@ -9,10 +9,15 @@
     // （含内嵌字体）解析完才运行，浅色用户每次加载都会先看到一帧深色画面。
     // 这里只做预绘制快路径，取值合法性仍由 initAppearance 以 DOM 为准再校验一次。
     (() => {
+      // v2 与 v1 各自兜底，不从同一个 try 里串行回退：v2 一旦是坏 JSON，
+      // 下面的 || 会直接短路成系统偏好，把仍然有效的 v1 丢掉。
+      const readPrefs = key => {
+        try { const value = JSON.parse(localStorage.getItem(key) || 'null'); return value && typeof value === 'object' ? value : null; }
+        catch (_) { return null; }
+      };
       try {
-        const prefs = JSON.parse(localStorage.getItem('yipop-prefs-v2') || 'null')
-          || JSON.parse(localStorage.getItem('yipop-prefs-v1') || 'null');
-        // 与正文 .swatch 的 data-accent 列表保持同步。
+        const prefs = readPrefs('yipop-prefs-v2') || readPrefs('yipop-prefs-v1');
+        // 与正文 .swatch 的 data-accent 列表保持同步；core.test.cjs 会比对这两处。
         const accents = ['violet', 'blue', 'cyan', 'green', 'amber', 'orange', 'pink', 'coral'];
         const theme = prefs && ['light', 'dark'].includes(prefs.theme) ? prefs.theme
           : (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
