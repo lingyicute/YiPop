@@ -330,7 +330,7 @@
        所以这里直接声明 1.15em 就能稳定推出像素值（JS 也只按 em 兜底换算），
        不必再在每一格上写 calc(var(--odo-cell) * -pos)，省掉上千次自定义属性替换。
        text-overflow: ellipsis 对 inline-block 组成的滚轮本来就不生效，去掉以免误导。 */
-    .stat-value { max-width: 100%; --odo-cell: 1.15em; font-size: clamp(28px, 4vw, 38px); font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; overflow: hidden; }
+    .stat-value { max-width: 100%; --odo-cell: 1.15em; font-size: calc(clamp(28px, 4vw, 38px) * var(--odo-fit, 1)); font-weight: 900; line-height: 1; font-variant-numeric: tabular-nums; overflow: hidden; }
     /* 机械数字滚轮：每一位是一列 0-9 的滑带，溢出窗口只露出当前数字，滚动方向恒为向前。
        数字字形走 ::before + attr()，不进入 textContent/读屏；真实文本由 .sr-only 提供。 */
     .odo { display: inline-block; vertical-align: top; white-space: nowrap; } /* nowrap：数字列是相邻 inline-block，窄卡片里边界会成为断行点，必须禁掉 */
@@ -718,7 +718,7 @@
       .stats-panel { gap: 8px; }
       .stat-card { min-height: 86px; padding: 13px 10px; border-radius: 23px; }
       .stat-label { font-size: 12px; }
-      .stat-value { font-size: clamp(24px, 7vw, 32px); }
+      .stat-value { font-size: calc(clamp(24px, 7vw, 32px) * var(--odo-fit, 1)); }
       .round-action { width: 55px; height: 55px; }
       .round-action svg { width: 26px; height: 26px; }
       .game-layout { gap: 17px; }
@@ -737,7 +737,7 @@
       .stats-panel { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 49px 49px; gap: 6px; }
       .round-action { width: 49px; height: 49px; }
       .stat-card { min-height: 80px; border-radius: 20px; }
-      .stat-value { font-size: 24px; }
+      .stat-value { font-size: calc(24px * var(--odo-fit, 1)); }
       .difficulty-options { grid-template-columns: repeat(2, 1fr); }
       .panel-card { padding: 18px; }
       .score-preview { padding: 6px 8px; }
@@ -1456,6 +1456,46 @@
       const ODO_SETTLE_MS = 800;          // 略长于 .55s 滚动，作 transitionend 的兜底
       const odoCache = new WeakMap();
 
+      // 统计卡采用 minmax(0, 1fr)，六位数的固有宽度可能超过卡片。只靠 max-width +
+      // overflow:hidden 会静默截掉末位；按当前卡宽等比缩小字号，保留完整数字和字形比例。
+      // --odo-fit 与基础字号分开，外部自定义 font-size 仍可像原来一样覆盖整条规定。
+      function fitStatValue(el) {
+        const odo = odoCache.get(el);
+        if (!odo || !el.classList.contains('stat-value')) return;
+        el.style.removeProperty('--odo-fit');
+        const available = el.clientWidth;
+        if (!available) return;
+        let fit = 1;
+        // 每列 inline-block 的固有宽度会分别取整，只按总宽度缩一次仍可能超出；
+        // 根据实际渲染结果迭代校正。向下取整且不设最小字号，避免窄卡重新裁切。
+        for (let attempt = 0; attempt < 4; attempt++) {
+          const required = odo.wrap.offsetWidth;
+          if (required <= available) break;
+          const next = Math.floor(fit * available / required * 1000) / 1000;
+          if (next <= 0 || next === fit) break;
+          fit = next;
+          el.style.setProperty('--odo-fit', String(fit));
+        }
+      }
+
+      function fitAllStatValues() {
+        fitStatValue(els.score);
+        fitStatValue(els.best);
+      }
+
+      // 观察卡片而不是数字本身：适配只改变数字高度，不应再次触发宽度测量。
+      const statCardWidths = new WeakMap();
+      const statCardObserver = typeof ResizeObserver === 'function' ? new ResizeObserver(entries => {
+        for (const { target, contentRect } of entries) {
+          if (statCardWidths.get(target) === contentRect.width) continue;
+          statCardWidths.set(target, contentRect.width);
+          fitStatValue(target.querySelector('.stat-value'));
+        }
+      }) : null;
+      for (const el of [els.score, els.best]) statCardObserver?.observe(el.parentElement);
+      // font-display:swap 换入真实字形后宽度可能改变，卡片宽度却不会变化。
+      document.fonts?.ready.then(fitAllStatValues);
+
       // 格高只在整条滑带上用一次 calc(var(--odo-cell) * -pos)：--odo-cell 由 .stat-value /
       // .progress-number 声明（唯一来源），这里保留同样的 em 兜底，两者必须一致 ——
       // animation.spec 会断言滑带位移恰好等于 pos × 列的盒高。
@@ -1552,6 +1592,7 @@
           }
           odoCache.set(el, odo);
           live.textContent = text;
+          fitStatValue(el);
           void wrap.offsetWidth; // 强制回流：让 0 的初始位置先生效，再滚向目标
           targets.forEach((digit, i) => rollOdoColumn(odo.cols[i], digit, (targets.length - 1 - i) * odometerStagger()));
           return;
