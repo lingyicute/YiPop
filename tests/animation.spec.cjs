@@ -223,6 +223,43 @@ test('score odometer stays on a single line in a narrow card', async ({ page }) 
   expect(columns.every(col => Math.abs(col.shift - col.expected) < 1)).toBe(true);
 });
 
+test('score and best odometers keep every digit visible across card sizes', async ({ page }) => {
+  // 回归：侧栏的两张统计卡比六位数滚轮窄时，max-width + overflow:hidden 会静默截掉末位。
+  // 不能只断言 textContent / nowrap：读屏文本完整、数字列不换行，仍可能有一半数字在裁剪区外。
+  await page.setViewportSize({ width: 1280, height: 700 });
+  const board = emptyBoard(14);
+  board[13][0] = board[13][1] = board[12][0] = board[12][1] = 0;
+  await seed(page, savedGame(board, { difficulty: 'expert', score: 102345 }), {
+    'yipop-best-v1': { easy: 0, medium: 0, hard: 0, expert: 102345 },
+  });
+  await expect(page.locator('#scoreValue')).toHaveText('102345');
+  await expect(page.locator('#bestValue')).toHaveText('102345');
+  await page.evaluate(() => document.fonts.ready);
+  await page.waitForTimeout(1200); // 等首屏滚动与字体交换完成，再测量最终可见几何
+
+  for (const width of [1280, 980, 280, 1280]) {
+    await page.setViewportSize({ width, height: 700 });
+    await page.waitForTimeout(150); // 等 ResizeObserver 按新卡宽完成适配
+    for (const selector of ['#scoreValue', '#bestValue']) {
+      const geometry = await page.locator(selector).evaluate(el => {
+        const bounds = el.getBoundingClientRect();
+        const digits = [...el.querySelectorAll('.odo-col')].map(col => {
+          const rect = col.getBoundingClientRect();
+          return { left: rect.left, right: rect.right };
+        });
+        return {
+          clientWidth: el.clientWidth,
+          scrollWidth: el.scrollWidth,
+          visible: digits.filter(rect => rect.left >= bounds.left - 1 && rect.right <= bounds.right + 1).length,
+          total: digits.length,
+        };
+      });
+      expect(geometry.scrollWidth, `${selector} at ${width}px`).toBeLessThanOrEqual(geometry.clientWidth + 1);
+      expect(geometry.visible, `${selector} at ${width}px`).toBe(geometry.total);
+    }
+  }
+});
+
 test('score odometer keeps its cell height when the font is scaled up', async ({ page }) => {
   // 系统字号放大 / 用户样式改字号时，--odo-cell 是 em 值，会跟着字号一起放大；
   // 位移仍须等于 pos × 盒高，且整条读数不能被裁成两行。这是「几何量走 CSS 变量」的回归线。
