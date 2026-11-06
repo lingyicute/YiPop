@@ -128,6 +128,7 @@
       z-index: 50;
       top: 0;
       height: 96px;
+      border-bottom: 1px solid var(--outline-soft);
       border-bottom: 1px solid color-mix(in srgb, var(--outline-soft) 45%, transparent);
       background: var(--header-bg);
       backdrop-filter: blur(18px) saturate(1.25);
@@ -208,6 +209,7 @@
       top: calc(100% + 14px);
       width: 340px;
       padding: 22px;
+      border: 1px solid var(--outline-soft);
       border: 1px solid color-mix(in srgb, var(--outline-soft) 65%, transparent);
       border-radius: 28px;
       color: var(--on-surface);
@@ -369,6 +371,7 @@
       padding: clamp(10px, 2.2vw, 19px);
       border-radius: clamp(26px, 5vw, 40px);
       background: var(--board-bg);
+      box-shadow: inset 0 0 0 1px var(--outline-soft), var(--shadow);
       box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--outline-soft) 45%, transparent), var(--shadow);
       transition: background .3s;
     }
@@ -400,6 +403,7 @@
       border: 0;
       overflow: hidden;
       color: white;
+      background: linear-gradient(145deg, var(--tile), var(--tile-dark));
       background: linear-gradient(145deg, color-mix(in srgb, var(--tile) 92%, white), var(--tile-dark));
       box-shadow:
         inset 0 1px 0 rgba(255,255,255,.22),
@@ -434,6 +438,7 @@
       z-index: 2;
       transform: scale(1.08);
       filter: saturate(1.12) brightness(1.08);
+      box-shadow: 0 6px 14px rgba(15,8,24,.25), 0 0 0 3px rgba(255,255,255,.74);
       box-shadow: 0 6px 14px rgba(15,8,24,.25), 0 0 0 3px color-mix(in srgb, white 74%, var(--tile));
     }
     .tile:hover::before, .tile.group-preview::before { transform: scale(1.14) rotate(8deg); }
@@ -491,8 +496,10 @@
     .control-panel { grid-area: panel; display: grid; gap: 16px; align-content: start; }
     .panel-card {
       padding: 22px;
+      border: 1px solid var(--outline-soft);
       border: 1px solid color-mix(in srgb, var(--outline-soft) 58%, transparent);
       border-radius: 28px;
+      background: var(--surface-high);
       background: color-mix(in srgb, var(--surface-high) 88%, transparent);
     }
     .panel-heading { margin: 0 0 16px; font-size: 16px; font-weight: 900; letter-spacing: .04em; }
@@ -601,6 +608,7 @@
       border: max(2px, calc(var(--blast-size) * .055)) solid var(--particle-color, var(--primary));
       border-radius: 50%;
       pointer-events: none;
+      box-shadow: 0 0 14px var(--particle-color, var(--primary));
       box-shadow: 0 0 14px color-mix(in srgb, var(--particle-color, var(--primary)) 70%, transparent);
       transform: translate(-50%, -50%) scale(.28);
       animation: blastRing .38s ease-out forwards;
@@ -613,6 +621,7 @@
     .modal-layer {
       position: fixed;
       z-index: 110;
+      top: 0; right: 0; bottom: 0; left: 0;
       inset: 0;
       padding: 22px;
       display: grid;
@@ -766,6 +775,7 @@
       color: var(--primary);
       font-weight: 800;
       text-decoration: none;
+      border-bottom: 1px solid var(--primary);
       border-bottom: 1px solid color-mix(in srgb, var(--primary) 38%, transparent);
       transition: color .18s, border-color .18s, opacity .18s;
     }
@@ -773,6 +783,7 @@
 
     .combo-layer {
       position: fixed;
+      top: 0; right: 0; bottom: 0; left: 0;
       inset: 0;
       z-index: 135;
       display: grid;
@@ -789,6 +800,7 @@
       border-radius: 24px;
       color: var(--on-primary-container);
       background: var(--primary-container);
+      box-shadow: 0 18px 48px rgba(0,0,0,.28), 0 0 0 1px rgba(255,255,255,.12);
       box-shadow: 0 18px 48px rgba(0,0,0,.28), 0 0 0 1px color-mix(in srgb, white 12%, transparent);
       font-size: clamp(20px, 5vw, 34px);
       font-weight: 950;
